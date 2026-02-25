@@ -1,0 +1,16 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'backend'
+
+include 'common'
+include 'services:auth-service'
+include 'services:user-service'
+include 'services:gateway-service'
+include 'services:job-service'
+include 'services:proposal-service'
+include 'services:contract-service'

@@ -1,0 +1,33 @@
+# Java / Gradle
+.gradle/
+build/
+out/
+*.class
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Env (secrets)
+.env
+
+# Spring config by environment (không push secret)
+application-local.yml
+application-dev.yml
+application-prod.yml
+
+# Docker volumes/data
+docker-data/
