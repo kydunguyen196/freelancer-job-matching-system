@@ -14,9 +14,13 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.skillbridge.job_service.dto.ApiErrorResponse;
+
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -40,6 +44,23 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiErrorResponse> handleNotReadable(HttpMessageNotReadableException ex, WebRequest request) {
         return buildResponse(HttpStatus.BAD_REQUEST, "Malformed JSON request", request, null);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex, WebRequest request) {
+        String field = ex.getName() == null ? "request" : ex.getName();
+        return buildResponse(HttpStatus.BAD_REQUEST, "Invalid value for '" + field + "'", request, null);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleConstraintViolation(ConstraintViolationException ex, WebRequest request) {
+        Map<String, String> fieldErrors = new LinkedHashMap<>();
+        for (ConstraintViolation<?> violation : ex.getConstraintViolations()) {
+            String rawPath = violation.getPropertyPath() == null ? "request" : violation.getPropertyPath().toString();
+            String field = rawPath.contains(".") ? rawPath.substring(rawPath.lastIndexOf('.') + 1) : rawPath;
+            fieldErrors.putIfAbsent(field, violation.getMessage());
+        }
+        return buildResponse(HttpStatus.BAD_REQUEST, "Validation failed", request, fieldErrors);
     }
 
     @ExceptionHandler(Exception.class)

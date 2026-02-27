@@ -1,0 +1,6 @@
+CREATE DATABASE auth_db;
+CREATE DATABASE user_db;
+CREATE DATABASE job_db;
+CREATE DATABASE proposal_db;
+CREATE DATABASE contract_db;
+CREATE DATABASE notification_db;

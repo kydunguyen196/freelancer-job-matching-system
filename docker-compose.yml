@@ -2,14 +2,191 @@ services:
   postgres:
     image: postgres:16
     container_name: skillbridge-postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init-multiple-dbs.sql:/docker-entrypoint-initdb.d/init-multiple-dbs.sql:ro
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    container_name: skillbridge-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: services/auth-service/Dockerfile
+    container_name: skillbridge-auth-service
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/auth_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      APP_JWT_SECRET: change-this-secret-key-to-at-least-32-characters-long-for-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+
+  user-service:
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
+    container_name: skillbridge-user-service
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/user_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      APP_JWT_SECRET: change-this-secret-key-to-at-least-32-characters-long-for-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+
+  job-service:
+    build:
+      context: .
+      dockerfile: services/job-service/Dockerfile
+    container_name: skillbridge-job-service
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/job_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      APP_JWT_SECRET: change-this-secret-key-to-at-least-32-characters-long-for-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+
+  contract-service:
+    build:
+      context: .
+      dockerfile: services/contract-service/Dockerfile
+    container_name: skillbridge-contract-service
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/contract_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+      APP_JWT_SECRET: change-this-secret-key-to-at-least-32-characters-long-for-dev
+      APP_INTERNAL_API_KEY: change-this-contract-internal-api-key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+
+  proposal-service:
+    build:
+      context: .
+      dockerfile: services/proposal-service/Dockerfile
+    container_name: skillbridge-proposal-service
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/proposal_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+      APP_JWT_SECRET: change-this-secret-key-to-at-least-32-characters-long-for-dev
+      APP_SERVICES_JOB_BASE_URL: http://job-service:8083
+      APP_SERVICES_CONTRACT_BASE_URL: http://contract-service:8085
+      APP_INTERNAL_API_KEY: change-this-contract-internal-api-key
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      job-service:
+        condition: service_started
+      contract-service:
+        condition: service_started
+    ports:
+      - "8084:8084"
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    container_name: skillbridge-notification-service
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/notification_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: guest
+      RABBITMQ_PASSWORD: guest
+      APP_JWT_SECRET: change-this-secret-key-to-at-least-32-characters-long-for-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8086:8086"
+
+  gateway-service:
+    build:
+      context: .
+      dockerfile: services/gateway-service/Dockerfile
+    container_name: skillbridge-gateway-service
+    restart: unless-stopped
+    environment:
+      APP_CORS_ALLOWED_ORIGIN: http://localhost:3000
+      AUTH_SERVICE_URL: http://auth-service:8081
+      USER_SERVICE_URL: http://user-service:8082
+      JOB_SERVICE_URL: http://job-service:8083
+      PROPOSAL_SERVICE_URL: http://proposal-service:8084
+      CONTRACT_SERVICE_URL: http://contract-service:8085
+      NOTIFICATION_SERVICE_URL: http://notification-service:8086
+    depends_on:
+      auth-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+      job-service:
+        condition: service_started
+      proposal-service:
+        condition: service_started
+      contract-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+    ports:
+      - "8080:8080"
 
 volumes:
   pgdata:

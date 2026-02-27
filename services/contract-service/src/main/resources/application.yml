@@ -6,9 +6,14 @@ spring:
     name: contract-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/contract_db
-    username: postgres
-    password: postgres
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/contract_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
 
   jpa:
     hibernate:
@@ -19,6 +24,8 @@ spring:
     open-in-view: false
 
 logging:
+  pattern:
+    level: "%5p [cid:%X{correlationId:-}]"
   level:
     org.hibernate.SQL: debug
 
@@ -27,3 +34,17 @@ management:
     web:
       exposure:
         include: health,info
+
+app:
+  jwt:
+    secret: ${APP_JWT_SECRET:change-this-secret-key-to-at-least-32-characters-long-for-dev}
+    access-token-expiration-ms: ${APP_JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
+    refresh-token-expiration-ms: ${APP_JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+  internal:
+    api-key: ${APP_INTERNAL_API_KEY:change-this-contract-internal-api-key}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html

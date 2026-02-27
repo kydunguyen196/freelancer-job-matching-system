@@ -6,9 +6,9 @@ spring:
     name: job-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/job_db
-    username: postgres
-    password: postgres
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/job_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:postgres}
 
   jpa:
     hibernate:
@@ -19,6 +19,8 @@ spring:
     open-in-view: false
 
 logging:
+  pattern:
+    level: "%5p [cid:%X{correlationId:-}]"
   level:
     org.hibernate.SQL: debug
 
@@ -30,6 +32,12 @@ management:
 
 app:
   jwt:
-    secret: change-this-secret-key-to-at-least-32-characters-long-for-dev
-    access-token-expiration-ms: 900000
-    refresh-token-expiration-ms: 604800000
+    secret: ${APP_JWT_SECRET:change-this-secret-key-to-at-least-32-characters-long-for-dev}
+    access-token-expiration-ms: ${APP_JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
+    refresh-token-expiration-ms: ${APP_JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
