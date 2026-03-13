@@ -15,5 +15,6 @@ allprojects {
 subprojects {
     tasks.withType(Test).configureEach {
         useJUnitPlatform()
+        systemProperty 'user.timezone', 'UTC'
     }
 }

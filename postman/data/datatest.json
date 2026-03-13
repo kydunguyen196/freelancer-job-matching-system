@@ -1,0 +1,28 @@
+[
+  {
+    "clientEmail": "client.demo.01@skillbridge.local",
+    "freelancerEmail": "freelancer.demo.01@skillbridge.local",
+    "password": "Demo12345!",
+    "clientCompany": "SkillBridge QA Co 01",
+    "freelancerHourlyRate": 45,
+    "jobTitleSuffix": "QA-01",
+    "budgetMin": 300,
+    "budgetMax": 600,
+    "proposalPrice": 450,
+    "durationDays": 7,
+    "milestoneAmount": 450
+  },
+  {
+    "clientEmail": "client.demo.02@skillbridge.local",
+    "freelancerEmail": "freelancer.demo.02@skillbridge.local",
+    "password": "Demo12345!",
+    "clientCompany": "SkillBridge QA Co 02",
+    "freelancerHourlyRate": 50,
+    "jobTitleSuffix": "QA-02",
+    "budgetMin": 500,
+    "budgetMax": 900,
+    "proposalPrice": 700,
+    "durationDays": 10,
+    "milestoneAmount": 700
+  }
+]

@@ -10,6 +10,11 @@ public record ProfileResponse(
         List<String> skills,
         BigDecimal hourlyRate,
         String overview,
-        String companyName
+        String companyName,
+        String contactEmail,
+        String phoneNumber,
+        String address,
+        String companyAddress,
+        String resumeFileName
 ) {
 }

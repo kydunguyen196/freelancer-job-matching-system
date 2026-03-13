@@ -4,6 +4,28 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+function Wait-ApiReady {
+    param(
+        [Parameter(Mandatory = $true)] [string]$HealthUrl,
+        [int]$MaxAttempts = 40,
+        [int]$SleepSeconds = 3
+    )
+
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            $response = Invoke-RestMethod -Method "GET" -Uri $HealthUrl
+            if ($response.status -eq "UP") {
+                return
+            }
+        } catch {
+            # gateway may still be starting; retry
+        }
+        Start-Sleep -Seconds $SleepSeconds
+    }
+
+    throw "Gateway is not ready after $MaxAttempts attempts. Checked: $HealthUrl"
+}
+
 function Invoke-ApiJson {
     param(
         [Parameter(Mandatory = $true)][ValidateSet("GET", "POST", "PUT", "PATCH")] [string]$Method,
@@ -87,6 +109,7 @@ function Ensure-Profile {
 }
 
 Write-Host "Seeding demo data via gateway: $BaseUrl"
+Wait-ApiReady -HealthUrl "$BaseUrl/actuator/health"
 
 $clientAuth = Ensure-Account -Email "client.demo@skillbridge.local" -Password "Demo12345!" -Role "CLIENT"
 $freelancerAuth = Ensure-Account -Email "freelancer.demo@skillbridge.local" -Password "Demo12345!" -Role "FREELANCER"
