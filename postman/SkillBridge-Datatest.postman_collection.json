@@ -1,0 +1,295 @@
+{
+  "info": {
+    "name": "SkillBridge Datatest",
+    "_postman_id": "68f94df0-8a7b-4f45-9c4d-f225d1e6ceec",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" }
+  ],
+  "item": [
+    {
+      "name": "01 Register Client",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{clientEmail}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"CLIENT\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/auth/register"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201 or 409', function () {",
+              "  pm.expect([201, 409]).to.include(pm.response.code);",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  const data = pm.response.json();",
+              "  pm.environment.set('clientUserId', data.userId);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Register Freelancer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{freelancerEmail}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"FREELANCER\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/auth/register"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 201 or 409', function () {",
+              "  pm.expect([201, 409]).to.include(pm.response.code);",
+              "});",
+              "if (pm.response.code === 201) {",
+              "  const data = pm.response.json();",
+              "  pm.environment.set('freelancerUserId', data.userId);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Login Client",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{clientEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "pm.environment.set('clientAccessToken', pm.response.json().accessToken);",
+              "pm.environment.set('clientRefreshToken', pm.response.json().refreshToken);",
+              "pm.environment.set('clientUserId', pm.response.json().userId);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Login Freelancer",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{freelancerEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "pm.environment.set('freelancerAccessToken', pm.response.json().accessToken);",
+              "pm.environment.set('freelancerRefreshToken', pm.response.json().refreshToken);",
+              "pm.environment.set('freelancerUserId', pm.response.json().userId);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Upsert Client Profile",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{clientAccessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"companyName\": \"{{clientCompany}}\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/users/me"
+      }
+    },
+    {
+      "name": "06 Upsert Freelancer Profile",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{freelancerAccessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"skills\": [\"java\", \"spring\", \"postgresql\"],\n  \"hourlyRate\": {{freelancerHourlyRate}},\n  \"overview\": \"Demo freelancer account\",\n  \"companyName\": null\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/users/me"
+      }
+    },
+    {
+      "name": "07 Create Job",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{clientAccessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Demo Backend Job {{$timestamp}} {{jobTitleSuffix}}\",\n  \"description\": \"Implement REST endpoint hardening and event notifications.\",\n  \"budgetMin\": {{budgetMin}},\n  \"budgetMax\": {{budgetMax}},\n  \"tags\": [\"java\", \"spring-boot\", \"rabbitmq\"]\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/jobs"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+              "pm.environment.set('jobId', pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 Create Proposal",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{freelancerAccessToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"jobId\": {{jobId}},\n  \"coverLetter\": \"I can deliver this in {{durationDays}} days with tests and docs.\",\n  \"price\": {{proposalPrice}},\n  \"durationDays\": {{durationDays}}\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": "{{baseUrl}}/proposals"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+              "pm.environment.set('proposalId', pm.response.json().id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 Accept Proposal",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Authorization", "value": "Bearer {{clientAccessToken}}" }],
+        "url": "{{baseUrl}}/proposals/{{proposalId}}/accept"
+      }
+    },
+    {
+      "name": "10 Get Contracts (Freelancer)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{freelancerAccessToken}}" }],
+        "url": "{{baseUrl}}/contracts/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "const arr = pm.response.json();",
+              "if (Array.isArray(arr) && arr.length > 0) {",
+              "  pm.environment.set('contractId', arr[0].id);",
+              "  if (arr[0].milestones && arr[0].milestones.length > 0) {",
+              "    pm.environment.set('milestoneId', arr[0].milestones[0].id);",
+              "  }",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 Complete Milestone",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Authorization", "value": "Bearer {{freelancerAccessToken}}" }],
+        "url": "{{baseUrl}}/milestones/{{milestoneId}}/complete"
+      }
+    },
+    {
+      "name": "12 Get Notifications",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{freelancerAccessToken}}" }],
+        "url": "{{baseUrl}}/notifications/me"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "const arr = pm.response.json();",
+              "if (Array.isArray(arr) && arr.length > 0) {",
+              "  pm.environment.set('notificationId', arr[0].id);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 Mark Notification Read",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Authorization", "value": "Bearer {{freelancerAccessToken}}" }],
+        "url": "{{baseUrl}}/notifications/{{notificationId}}/read"
+      }
+    },
+    {
+      "name": "14 Close Job (Optional)",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Authorization", "value": "Bearer {{clientAccessToken}}" }],
+        "url": "{{baseUrl}}/jobs/{{jobId}}/close"
+      }
+    }
+  ]
+}

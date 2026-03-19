@@ -1,7 +1,7 @@
 FROM gradle:8.10.2-jdk17 AS builder
 WORKDIR /workspace
 COPY . .
-RUN chmod +x gradlew && ./gradlew :services:gateway-service:bootJar --no-daemon
+RUN sed -i 's/\r$//' gradlew && chmod +x gradlew && ./gradlew :services:gateway-service:bootJar --no-daemon
 
 FROM eclipse-temurin:17-jre
 WORKDIR /app

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.skillbridge.user_service.domain.UserProfile;
@@ -63,6 +65,10 @@ class UserProfileServiceTest {
                 List.of("java"),
                 BigDecimal.valueOf(50),
                 "overview",
+                null,
+                null,
+                null,
+                null,
                 null
         );
 
@@ -82,6 +88,10 @@ class UserProfileServiceTest {
                 List.of(" Java ", "Spring", "java", " "),
                 BigDecimal.valueOf(35),
                 "  Backend developer  ",
+                null,
+                " DEV@Example.com ",
+                " +84 123 456 789 ",
+                " Ho Chi Minh City ",
                 null
         );
 
@@ -93,10 +103,16 @@ class UserProfileServiceTest {
         assertThat(saved.getSkills()).containsExactly("Java", "Spring", "java");
         assertThat(saved.getHourlyRate()).isEqualByComparingTo("35");
         assertThat(saved.getOverview()).isEqualTo("Backend developer");
+        assertThat(saved.getContactEmail()).isEqualTo("dev@example.com");
+        assertThat(saved.getPhoneNumber()).isEqualTo("+84 123 456 789");
+        assertThat(saved.getAddress()).isEqualTo("Ho Chi Minh City");
 
         assertThat(response.skills()).containsExactly("Java", "Spring", "java");
         assertThat(response.hourlyRate()).isEqualByComparingTo("35");
         assertThat(response.overview()).isEqualTo("Backend developer");
+        assertThat(response.contactEmail()).isEqualTo("dev@example.com");
+        assertThat(response.phoneNumber()).isEqualTo("+84 123 456 789");
+        assertThat(response.address()).isEqualTo("Ho Chi Minh City");
     }
 
     @Test
@@ -108,6 +124,49 @@ class UserProfileServiceTest {
         assertThatThrownBy(() -> userProfileService.getMyProfile(principal))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+    }
+
+    @Test
+    void uploadMyResumeShouldPersistFreelancerResume() {
+        JwtUserPrincipal principal = new JwtUserPrincipal(81L, "freelancer@example.com", "FREELANCER");
+        UserProfile existingProfile = profile(81L, "freelancer@example.com", UserRole.FREELANCER);
+        when(userProfileRepository.findByAuthUserId(81L)).thenReturn(Optional.of(existingProfile));
+        when(userProfileRepository.save(any(UserProfile.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "cv.pdf",
+                "application/pdf",
+                "resume-content".getBytes(StandardCharsets.UTF_8)
+        );
+
+        ProfileResponse response = userProfileService.uploadMyResume(principal, file);
+
+        ArgumentCaptor<UserProfile> profileCaptor = ArgumentCaptor.forClass(UserProfile.class);
+        verify(userProfileRepository).save(profileCaptor.capture());
+        UserProfile saved = profileCaptor.getValue();
+        assertThat(saved.getResumeFileName()).isEqualTo("cv.pdf");
+        assertThat(saved.getResumeContentType()).isEqualTo("application/pdf");
+        assertThat(saved.getResumeData()).isEqualTo("resume-content".getBytes(StandardCharsets.UTF_8));
+        assertThat(response.resumeFileName()).isEqualTo("cv.pdf");
+    }
+
+    @Test
+    void uploadMyResumeShouldRejectClientAccount() {
+        JwtUserPrincipal principal = new JwtUserPrincipal(90L, "client@example.com", "CLIENT");
+        UserProfile existingProfile = profile(90L, "client@example.com", UserRole.CLIENT);
+        when(userProfileRepository.findByAuthUserId(90L)).thenReturn(Optional.of(existingProfile));
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "cv.pdf",
+                "application/pdf",
+                "resume-content".getBytes(StandardCharsets.UTF_8)
+        );
+
+        assertThatThrownBy(() -> userProfileService.uploadMyResume(principal, file))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
     }
 
     private UserProfile profile(Long authUserId, String email, UserRole role) {

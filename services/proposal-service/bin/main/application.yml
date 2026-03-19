@@ -1,19 +1,19 @@
 server:
-  port: 8082
+  port: 8084
 
 spring:
   application:
-    name: user-service
-
-  servlet:
-    multipart:
-      max-file-size: 5MB
-      max-request-size: 5MB
+    name: proposal-service
 
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/user_db}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/proposal_db}
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:postgres}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
 
   jpa:
     hibernate:
@@ -40,6 +40,11 @@ app:
     secret: ${APP_JWT_SECRET:change-this-secret-key-to-at-least-32-characters-long-for-dev}
     access-token-expiration-ms: ${APP_JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
     refresh-token-expiration-ms: ${APP_JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+  services:
+    job-base-url: ${APP_SERVICES_JOB_BASE_URL:http://localhost:8083}
+    contract-base-url: ${APP_SERVICES_CONTRACT_BASE_URL:http://localhost:8085}
+  internal:
+    api-key: ${APP_INTERNAL_API_KEY:change-this-contract-internal-api-key}
 
 springdoc:
   api-docs:

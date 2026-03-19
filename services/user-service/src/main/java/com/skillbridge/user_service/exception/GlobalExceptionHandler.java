@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.skillbridge.user_service.dto.ApiErrorResponse;
@@ -54,6 +55,11 @@ public class GlobalExceptionHandler {
             fieldErrors.putIfAbsent(field, violation.getMessage());
         }
         return buildResponse(HttpStatus.BAD_REQUEST, "Validation failed", request, fieldErrors);
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleMaxUploadSize(MaxUploadSizeExceededException ex, WebRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "Uploaded file exceeds allowed size", request, null);
     }
 
     @ExceptionHandler(Exception.class)

@@ -37,7 +37,13 @@ class GatewayServiceApplicationTests {
 				"proposal-service",
 				"contract-service",
 				"contract-service-milestones",
-				"notification-service"
+				"notification-service",
+				"auth-service-docs",
+				"user-service-docs",
+				"job-service-docs",
+				"proposal-service-docs",
+				"contract-service-docs",
+				"notification-service-docs"
 		);
 	}
 

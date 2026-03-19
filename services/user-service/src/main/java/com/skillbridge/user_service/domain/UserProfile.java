@@ -16,6 +16,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -57,6 +58,28 @@ public class UserProfile {
 
     @Column(length = 255)
     private String companyName;
+
+    @Column(length = 255)
+    private String contactEmail;
+
+    @Column(length = 32)
+    private String phoneNumber;
+
+    @Column(length = 255)
+    private String address;
+
+    @Column(length = 255)
+    private String companyAddress;
+
+    @Column(length = 255)
+    private String resumeFileName;
+
+    @Column(length = 120)
+    private String resumeContentType;
+
+    @Lob
+    @Column
+    private byte[] resumeData;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -138,6 +161,62 @@ public class UserProfile {
 
     public void setCompanyName(String companyName) {
         this.companyName = companyName;
+    }
+
+    public String getContactEmail() {
+        return contactEmail;
+    }
+
+    public void setContactEmail(String contactEmail) {
+        this.contactEmail = contactEmail;
+    }
+
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public String getCompanyAddress() {
+        return companyAddress;
+    }
+
+    public void setCompanyAddress(String companyAddress) {
+        this.companyAddress = companyAddress;
+    }
+
+    public String getResumeFileName() {
+        return resumeFileName;
+    }
+
+    public void setResumeFileName(String resumeFileName) {
+        this.resumeFileName = resumeFileName;
+    }
+
+    public String getResumeContentType() {
+        return resumeContentType;
+    }
+
+    public void setResumeContentType(String resumeContentType) {
+        this.resumeContentType = resumeContentType;
+    }
+
+    public byte[] getResumeData() {
+        return resumeData == null ? null : resumeData.clone();
+    }
+
+    public void setResumeData(byte[] resumeData) {
+        this.resumeData = resumeData == null ? null : resumeData.clone();
     }
 
     public Instant getCreatedAt() {
