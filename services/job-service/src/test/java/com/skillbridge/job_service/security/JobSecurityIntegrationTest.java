@@ -30,6 +30,7 @@ import com.skillbridge.job_service.config.SecurityConfig;
 import com.skillbridge.job_service.controller.JobController;
 import com.skillbridge.job_service.dto.JobResponse;
 import com.skillbridge.job_service.dto.PagedResult;
+import com.skillbridge.job_service.service.JobSearchAdminService;
 import com.skillbridge.job_service.service.JobService;
 
 import io.jsonwebtoken.Jwts;
@@ -51,6 +52,9 @@ class JobSecurityIntegrationTest {
 
     @MockitoBean
     private JobService jobService;
+
+    @MockitoBean
+    private JobSearchAdminService jobSearchAdminService;
 
     @Test
     void createJobShouldRequireAuthentication() throws Exception {

@@ -41,13 +41,14 @@ class NotificationEventConsumerTest {
                 40L,
                 NotificationType.PROPOSAL_CREATED,
                 "New proposal received",
-                "A freelancer applied to your job #20"
+                "A freelancer applied to your job #20",
+                null
         );
     }
 
     @Test
     void handleProposalAcceptedShouldCreateFreelancerNotification() {
-        ProposalAcceptedEvent event = new ProposalAcceptedEvent(11L, 22L, 33L, 44L, Instant.now());
+        ProposalAcceptedEvent event = new ProposalAcceptedEvent(11L, 22L, 33L, 44L, "freelancer@example.com", Instant.now());
 
         notificationEventConsumer.handleProposalAccepted(event);
 
@@ -55,7 +56,8 @@ class NotificationEventConsumerTest {
                 44L,
                 NotificationType.PROPOSAL_ACCEPTED,
                 "Proposal accepted",
-                "Your proposal for job #22 has been accepted"
+                "Your proposal for job #22 has been accepted",
+                "freelancer@example.com"
         );
     }
 
@@ -69,7 +71,8 @@ class NotificationEventConsumerTest {
                 org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.eq(NotificationType.MILESTONE_COMPLETED),
                 org.mockito.ArgumentMatchers.eq("Milestone completed"),
-                org.mockito.ArgumentMatchers.eq("Milestone #99 was completed for contract #88")
+                org.mockito.ArgumentMatchers.eq("Milestone #99 was completed for contract #88"),
+                org.mockito.ArgumentMatchers.isNull()
         );
     }
 
@@ -83,7 +86,8 @@ class NotificationEventConsumerTest {
                 10L,
                 NotificationType.MILESTONE_COMPLETED,
                 "Milestone completed",
-                "Milestone #99 was completed for contract #88"
+                "Milestone #99 was completed for contract #88",
+                null
         );
     }
 
@@ -104,7 +108,8 @@ class NotificationEventConsumerTest {
                 0L,
                 NotificationType.PROPOSAL_CREATED,
                 "New proposal received",
-                "A freelancer applied to your job #20"
+                "A freelancer applied to your job #20",
+                null
         );
 
         notificationEventConsumer.handleProposalCreated(event);
@@ -113,7 +118,8 @@ class NotificationEventConsumerTest {
                 0L,
                 NotificationType.PROPOSAL_CREATED,
                 "New proposal received",
-                "A freelancer applied to your job #20"
+                "A freelancer applied to your job #20",
+                null
         );
     }
 

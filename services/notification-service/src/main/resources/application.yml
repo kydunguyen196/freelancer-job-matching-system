@@ -41,6 +41,16 @@ app:
     secret: ${APP_JWT_SECRET:change-this-secret-key-to-at-least-32-characters-long-for-dev}
     access-token-expiration-ms: ${APP_JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
     refresh-token-expiration-ms: ${APP_JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+  email:
+    enabled: ${ENABLE_EMAIL:false}
+    sendgrid-api-key: ${SENDGRID_API_KEY:}
+    from-email: ${MAIL_FROM_EMAIL:}
+    from-name: ${MAIL_FROM_NAME:SkillBridge}
+    sendgrid-base-url: ${SENDGRID_BASE_URL:https://api.sendgrid.com}
+    max-attempts: ${EMAIL_MAX_ATTEMPTS:5}
+    initial-retry-delay-seconds: ${EMAIL_INITIAL_RETRY_DELAY_SECONDS:60}
+    retry-multiplier: ${EMAIL_RETRY_MULTIPLIER:2.0}
+    retry-poll-delay-ms: ${EMAIL_RETRY_POLL_DELAY_MS:60000}
   internal:
     api-key: ${APP_INTERNAL_API_KEY:change-this-contract-internal-api-key}
 

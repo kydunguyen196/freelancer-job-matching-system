@@ -67,7 +67,8 @@ public class NotificationController {
                 request.recipientUserId(),
                 request.type(),
                 request.title(),
-                request.message()
+                request.message(),
+                request.recipientEmail()
         );
     }
 

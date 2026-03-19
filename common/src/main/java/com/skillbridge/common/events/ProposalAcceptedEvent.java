@@ -7,6 +7,7 @@ public record ProposalAcceptedEvent(
         Long jobId,
         Long clientId,
         Long freelancerId,
+        String freelancerEmail,
         Instant acceptedAt
 ) {
 }

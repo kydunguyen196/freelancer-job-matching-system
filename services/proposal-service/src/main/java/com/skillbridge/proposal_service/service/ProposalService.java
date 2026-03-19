@@ -1,7 +1,6 @@
 package com.skillbridge.proposal_service.service;
 
 import java.time.Instant;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -49,11 +48,13 @@ public class ProposalService {
     private final RestClient jobRestClient;
     private final RestClient contractRestClient;
     private final RestClient notificationRestClient;
+    private final CalendarService calendarService;
     private final String internalApiKey;
 
     public ProposalService(
             ProposalRepository proposalRepository,
             ProposalEventPublisher proposalEventPublisher,
+            CalendarService calendarService,
             @Value("${app.services.job-base-url:http://localhost:8083}") String jobBaseUrl,
             @Value("${app.services.contract-base-url:http://localhost:8085}") String contractBaseUrl,
             @Value("${app.services.notification-base-url:http://localhost:8086}") String notificationBaseUrl,
@@ -61,6 +62,7 @@ public class ProposalService {
     ) {
         this.proposalRepository = proposalRepository;
         this.proposalEventPublisher = proposalEventPublisher;
+        this.calendarService = calendarService;
         this.jobRestClient = RestClient.builder().baseUrl(jobBaseUrl).build();
         this.contractRestClient = RestClient.builder().baseUrl(contractBaseUrl).build();
         this.notificationRestClient = RestClient.builder().baseUrl(notificationBaseUrl).build();
@@ -170,6 +172,7 @@ public class ProposalService {
         Proposal saved = proposalRepository.save(proposal);
         safeCreateNotification(
                 saved.getFreelancerId(),
+                null,
                 "APPLICATION_FEEDBACK",
                 "Application under review",
                 "Your application for job #" + saved.getJobId() + " is now under review."
@@ -186,23 +189,29 @@ public class ProposalService {
         if (proposal.getStatus() == ProposalStatus.ACCEPTED || proposal.getStatus() == ProposalStatus.REJECTED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Completed proposal cannot be scheduled for interview");
         }
+        if (!request.interviewEndsAt().isAfter(request.interviewScheduledAt())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "interviewEndsAt must be after interviewScheduledAt");
+        }
 
         Instant now = Instant.now();
         proposal.setStatus(ProposalStatus.INTERVIEW_SCHEDULED);
         proposal.setReviewedByClientId(principal.userId());
         proposal.setReviewedAt(now);
         proposal.setInterviewScheduledAt(request.interviewScheduledAt());
+        proposal.setInterviewEndsAt(request.interviewEndsAt());
         proposal.setInterviewMeetingLink(normalizeOptionalText(request.meetingLink(), 512));
         proposal.setInterviewNotes(normalizeOptionalText(request.notes(), 2000));
         Proposal saved = proposalRepository.save(proposal);
+        String calendarWarning = attachGoogleCalendarEvent(saved, principal);
 
         safeCreateNotification(
                 saved.getFreelancerId(),
+                saved.getFreelancerEmail(),
                 "INTERVIEW_SCHEDULED",
                 "Interview scheduled",
                 buildInterviewMessage(saved)
         );
-        return toResponse(saved);
+        return toResponse(saved, calendarWarning);
     }
 
     @Transactional
@@ -226,6 +235,7 @@ public class ProposalService {
 
         safeCreateNotification(
                 saved.getFreelancerId(),
+                saved.getFreelancerEmail(),
                 "PROPOSAL_REJECTED",
                 "Application update",
                 "Your application for job #" + saved.getJobId() + " was rejected. " + saved.getFeedbackMessage()
@@ -280,6 +290,7 @@ public class ProposalService {
             proposalRepository.save(proposal);
             safeCreateNotification(
                     proposal.getFreelancerId(),
+                    proposal.getFreelancerEmail(),
                     "PROPOSAL_REJECTED",
                     "Application update",
                     "Your application for job #" + proposal.getJobId() + " was closed because another candidate was selected."
@@ -432,12 +443,12 @@ public class ProposalService {
         }
     }
 
-    private void safeCreateNotification(Long recipientUserId, String type, String title, String message) {
+    private void safeCreateNotification(Long recipientUserId, String recipientEmail, String type, String title, String message) {
         try {
             notificationRestClient.post()
                     .uri("/notifications/internal")
                     .header(INTERNAL_API_KEY_HEADER, internalApiKey)
-                    .body(new CreateNotificationRequest(recipientUserId, type, title, message))
+                    .body(new CreateNotificationRequest(recipientUserId, recipientEmail, type, title, message))
                     .retrieve()
                     .toBodilessEntity();
         } catch (RestClientException ex) {
@@ -454,6 +465,35 @@ public class ProposalService {
             builder.append(". Link: ").append(proposal.getInterviewMeetingLink());
         }
         return builder.toString();
+    }
+
+    private String attachGoogleCalendarEvent(Proposal proposal, JwtUserPrincipal principal) {
+        try {
+            JobSummary job = fetchJob(proposal.getJobId());
+            CalendarService.CreateInterviewEventResult result = calendarService.createInterviewEvent(new CalendarService.CreateInterviewEventRequest(
+                    proposal.getId(),
+                    proposal.getJobId(),
+                    job.title(),
+                    proposal.getFreelancerId(),
+                    proposal.getFreelancerEmail(),
+                    principal.userId(),
+                    normalizeEmail(principal.email()),
+                    proposal.getPrice(),
+                    proposal.getDurationDays(),
+                    proposal.getCoverLetter(),
+                    proposal.getInterviewScheduledAt(),
+                    proposal.getInterviewEndsAt(),
+                    proposal.getInterviewMeetingLink(),
+                    proposal.getInterviewNotes()
+            ));
+            if (result.externalEventId() != null) {
+                proposal.setGoogleEventId(result.externalEventId());
+            }
+            return result.warning();
+        } catch (RuntimeException ex) {
+            log.warn("Failed to attach Google Calendar event for proposalId={}", proposal.getId(), ex);
+            return "Google Calendar event could not be created";
+        }
     }
 
     private PagedResult<ProposalResponse> toPagedResult(Page<Proposal> result) {
@@ -527,6 +567,10 @@ public class ProposalService {
     }
 
     private ProposalResponse toResponse(Proposal proposal) {
+        return toResponse(proposal, null);
+    }
+
+    private ProposalResponse toResponse(Proposal proposal, String calendarWarning) {
         return new ProposalResponse(
                 proposal.getId(),
                 proposal.getJobId(),
@@ -543,8 +587,11 @@ public class ProposalService {
                 proposal.getRejectedAt(),
                 proposal.getFeedbackMessage(),
                 proposal.getInterviewScheduledAt(),
+                proposal.getInterviewEndsAt(),
                 proposal.getInterviewMeetingLink(),
                 proposal.getInterviewNotes(),
+                proposal.getGoogleEventId(),
+                calendarWarning,
                 proposal.getAcceptedByClientId(),
                 proposal.getAcceptedAt(),
                 proposal.getCreatedAt(),
@@ -555,6 +602,7 @@ public class ProposalService {
     private record JobSummary(
             Long id,
             Long clientId,
+            String title,
             ProposalJobStatus status
     ) {
     }
@@ -584,6 +632,7 @@ public class ProposalService {
 
     private record CreateNotificationRequest(
             Long recipientUserId,
+            String recipientEmail,
             String type,
             String title,
             String message

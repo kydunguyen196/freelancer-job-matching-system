@@ -44,6 +44,9 @@ class JobServiceTest {
     @Mock
     private FollowedCompanyRepository followedCompanyRepository;
 
+    @Mock
+    private JobSearchService jobSearchService;
+
     @InjectMocks
     private JobService jobService;
 

@@ -16,9 +16,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +47,7 @@ public class JobService {
     private final JobRepository jobRepository;
     private final SavedJobRepository savedJobRepository;
     private final FollowedCompanyRepository followedCompanyRepository;
+    private final JobSearchService jobSearchService;
     private final RestClient notificationRestClient;
     private final String internalApiKey;
 
@@ -57,12 +55,14 @@ public class JobService {
             JobRepository jobRepository,
             SavedJobRepository savedJobRepository,
             FollowedCompanyRepository followedCompanyRepository,
+            JobSearchService jobSearchService,
             @Value("${app.services.notification-base-url:http://localhost:8086}") String notificationBaseUrl,
             @Value("${app.internal.api-key}") String internalApiKey
     ) {
         this.jobRepository = jobRepository;
         this.savedJobRepository = savedJobRepository;
         this.followedCompanyRepository = followedCompanyRepository;
+        this.jobSearchService = jobSearchService;
         this.notificationRestClient = notificationBaseUrl == null
                 ? RestClient.builder().build()
                 : RestClient.builder().baseUrl(notificationBaseUrl).build();
@@ -93,6 +93,7 @@ public class JobService {
         applyStatusMetadata(job, job.getStatus(), Instant.now());
 
         Job savedJob = jobRepository.save(job);
+        safeIndexJob(savedJob);
         notifyFollowersForPublishedJob(savedJob);
         return toResponse(savedJob, principal);
     }
@@ -120,50 +121,24 @@ public class JobService {
         validateExperienceRange(experienceYearsMin, experienceYearsMax);
         validatePaging(page, size);
         List<String> normalizedTags = normalizeTags(tags);
-        String normalizedKeyword = normalizeText(keyword);
-        String normalizedLocation = normalizeText(location);
-        String normalizedCompanyName = normalizeText(companyName);
-
-        Specification<Job> spec = Specification.where(null);
-        if (normalizedKeyword != null) {
-            spec = spec.and(keywordContains(normalizedKeyword));
-        }
-        if (status != null) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
-        }
-        if (budgetMin != null) {
-            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("budgetMax"), budgetMin));
-        }
-        if (budgetMax != null) {
-            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("budgetMin"), budgetMax));
-        }
-        if (clientId != null) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("clientId"), clientId));
-        }
-        if (normalizedLocation != null) {
-            spec = spec.and(textContains("location", normalizedLocation));
-        }
-        if (normalizedCompanyName != null) {
-            spec = spec.and(textContains("companyName", normalizedCompanyName));
-        }
-        if (employmentType != null) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("employmentType"), employmentType));
-        }
-        if (remote != null) {
-            spec = spec.and((root, query, cb) -> cb.equal(root.get("remote"), remote));
-        }
-        if (experienceYearsMin != null) {
-            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("experienceYears"), experienceYearsMin));
-        }
-        if (experienceYearsMax != null) {
-            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("experienceYears"), experienceYearsMax));
-        }
-        for (String tag : normalizedTags) {
-            spec = spec.and((root, query, cb) -> cb.isMember(tag, root.get("tags")));
-        }
-
-        Pageable pageable = PageRequest.of(page, size, resolveSort(sortBy));
-        Page<Job> result = jobRepository.findAll(spec, pageable);
+        JobSearchRequest request = new JobSearchRequest(
+                normalizeText(keyword),
+                status,
+                budgetMin,
+                budgetMax,
+                clientId,
+                normalizedTags,
+                normalizeText(location),
+                normalizeText(companyName),
+                employmentType,
+                remote,
+                experienceYearsMin,
+                experienceYearsMax,
+                resolveSort(sortBy),
+                page,
+                size
+        );
+        PagedResult<JobSearchResultItem> result = jobSearchService.search(request);
         return toPagedResult(result, principal);
     }
 
@@ -213,6 +188,7 @@ public class JobService {
 
         applyStatusMetadata(job, requireStatus(status), Instant.now());
         Job savedJob = jobRepository.save(job);
+        safeIndexJob(savedJob);
         notifyUsersForStatusChange(savedJob);
         return toResponse(savedJob, principal);
     }
@@ -222,6 +198,7 @@ public class JobService {
         Job job = findJob(jobId);
         applyStatusMetadata(job, requireStatus(status), Instant.now());
         Job savedJob = jobRepository.save(job);
+        safeIndexJob(savedJob);
         notifyUsersForStatusChange(savedJob);
         return toResponse(savedJob, null);
     }
@@ -364,6 +341,21 @@ public class JobService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Job not found"));
     }
 
+    private PagedResult<JobResponse> toPagedResult(PagedResult<JobSearchResultItem> result, JwtUserPrincipal principal) {
+        Set<Long> savedJobIds = resolveSavedJobIds(principal, result.content().stream().map(JobSearchResultItem::id).toList());
+        Set<Long> followedCompanyIds = resolveFollowedCompanyIds(principal, result.content().stream().map(JobSearchResultItem::clientId).toList());
+        List<JobResponse> content = result.content().stream()
+                .map(job -> toResponse(job, savedJobIds.contains(job.id()), followedCompanyIds.contains(job.clientId())))
+                .toList();
+        return new PagedResult<>(
+                content,
+                result.totalElements(),
+                result.totalPages(),
+                result.page(),
+                result.size()
+        );
+    }
+
     private PagedResult<JobResponse> toPagedResult(Page<Job> result, JwtUserPrincipal principal) {
         Set<Long> savedJobIds = resolveSavedJobIds(principal, result.getContent().stream().map(Job::getId).toList());
         Set<Long> followedCompanyIds = resolveFollowedCompanyIds(principal, result.getContent().stream().map(Job::getClientId).toList());
@@ -395,21 +387,6 @@ public class JobService {
 
     private boolean isFreelancer(JwtUserPrincipal principal) {
         return principal != null && principal.role() != null && "FREELANCER".equalsIgnoreCase(principal.role());
-    }
-
-    private Specification<Job> keywordContains(String keyword) {
-        String pattern = "%" + keyword.toLowerCase(Locale.ROOT) + "%";
-        return (root, query, cb) -> cb.or(
-                cb.like(cb.lower(root.get("title")), pattern),
-                cb.like(cb.lower(root.get("description")), pattern),
-                cb.like(cb.lower(root.get("location")), pattern),
-                cb.like(cb.lower(root.get("companyName")), pattern)
-        );
-    }
-
-    private Specification<Job> textContains(String fieldName, String value) {
-        String pattern = "%" + value.toLowerCase(Locale.ROOT) + "%";
-        return (root, query, cb) -> cb.like(cb.lower(root.get(fieldName)), pattern);
     }
 
     private void validateBudgetRange(BigDecimal min, BigDecimal max) {
@@ -457,16 +434,16 @@ public class JobService {
         return requestedStatus;
     }
 
-    private Sort resolveSort(String sortBy) {
+    private JobSearchSort resolveSort(String sortBy) {
         String normalizedSort = normalizeText(sortBy);
         if (normalizedSort == null || "latest".equalsIgnoreCase(normalizedSort) || "newest".equalsIgnoreCase(normalizedSort)) {
-            return Sort.by(Sort.Order.desc("createdAt"));
+            return JobSearchSort.LATEST;
         }
         if ("salary_high".equalsIgnoreCase(normalizedSort) || "salaryHigh".equalsIgnoreCase(normalizedSort)) {
-            return Sort.by(Sort.Order.desc("budgetMax"), Sort.Order.desc("createdAt"));
+            return JobSearchSort.SALARY_HIGH;
         }
         if ("salary_low".equalsIgnoreCase(normalizedSort) || "salaryLow".equalsIgnoreCase(normalizedSort)) {
-            return Sort.by(Sort.Order.asc("budgetMin"), Sort.Order.desc("createdAt"));
+            return JobSearchSort.SALARY_LOW;
         }
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported sortBy value");
     }
@@ -581,6 +558,12 @@ public class JobService {
         return job.getCompanyName() == null ? "Client #" + job.getClientId() : job.getCompanyName();
     }
 
+    private void safeIndexJob(Job job) {
+        if (!jobSearchService.indexJob(job)) {
+            log.debug("Search indexing skipped or failed for jobId={}", job.getId());
+        }
+    }
+
     private JobResponse toResponse(Job job, JwtUserPrincipal principal) {
         boolean saved = isFreelancer(principal) && savedJobRepository.existsByUserIdAndJobId(principal.userId(), job.getId());
         boolean followed = isFreelancer(principal) && followedCompanyRepository.existsByFollowerUserIdAndClientId(principal.userId(), job.getClientId());
@@ -588,25 +571,29 @@ public class JobService {
     }
 
     private JobResponse toResponse(Job job, boolean savedByCurrentUser, boolean companyFollowedByCurrentUser) {
+        return toResponse(JobSearchResultItem.fromJob(job), savedByCurrentUser, companyFollowedByCurrentUser);
+    }
+
+    private JobResponse toResponse(JobSearchResultItem job, boolean savedByCurrentUser, boolean companyFollowedByCurrentUser) {
         return new JobResponse(
-                job.getId(),
-                job.getTitle(),
-                job.getDescription(),
-                job.getBudgetMin(),
-                job.getBudgetMax(),
-                List.copyOf(job.getTags()),
-                job.getStatus().name(),
-                job.getClientId(),
-                job.getCompanyName(),
-                job.getLocation(),
-                job.getEmploymentType().name(),
-                job.isRemote(),
-                job.getExperienceYears(),
-                job.getCreatedAt(),
-                job.getUpdatedAt(),
-                job.getPublishedAt(),
-                job.getExpiresAt(),
-                job.getClosedAt(),
+                job.id(),
+                job.title(),
+                job.description(),
+                job.budgetMin(),
+                job.budgetMax(),
+                List.copyOf(job.tags()),
+                job.status(),
+                job.clientId(),
+                job.companyName(),
+                job.location(),
+                job.employmentType(),
+                job.remote(),
+                job.experienceYears(),
+                job.createdAt(),
+                job.updatedAt(),
+                job.publishedAt(),
+                job.expiresAt(),
+                job.closedAt(),
                 savedByCurrentUser,
                 companyFollowedByCurrentUser
         );

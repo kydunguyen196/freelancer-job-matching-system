@@ -38,6 +38,7 @@ public class NotificationEventConsumer {
                 NotificationType.PROPOSAL_CREATED,
                 "New proposal received",
                 "A freelancer applied to your job #" + event.jobId(),
+                null,
                 "ProposalCreatedEvent",
                 event.proposalId()
         );
@@ -54,6 +55,7 @@ public class NotificationEventConsumer {
                 NotificationType.PROPOSAL_ACCEPTED,
                 "Proposal accepted",
                 "Your proposal for job #" + event.jobId() + " has been accepted",
+                event.freelancerEmail(),
                 "ProposalAcceptedEvent",
                 event.proposalId()
         );
@@ -71,6 +73,7 @@ public class NotificationEventConsumer {
                 NotificationType.MILESTONE_COMPLETED,
                 "Milestone completed",
                 "Milestone #" + event.milestoneId() + " was completed for contract #" + event.contractId(),
+                null,
                 "MilestoneCompletedEvent",
                 event.milestoneId()
         );
@@ -80,6 +83,7 @@ public class NotificationEventConsumer {
                     NotificationType.MILESTONE_COMPLETED,
                     "Milestone completed",
                     "Milestone #" + event.milestoneId() + " was completed for contract #" + event.contractId(),
+                    null,
                     "MilestoneCompletedEvent",
                     event.milestoneId()
             );
@@ -96,11 +100,12 @@ public class NotificationEventConsumer {
             NotificationType type,
             String title,
             String message,
+            String recipientEmail,
             String eventName,
             Long eventRefId
     ) {
         try {
-            notificationService.createNotification(recipientUserId, type, title, message);
+            notificationService.createNotification(recipientUserId, type, title, message, recipientEmail);
         } catch (RuntimeException ex) {
             log.warn("Failed to consume {} for refId={}: {}", eventName, eventRefId, ex.getMessage());
         }

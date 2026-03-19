@@ -46,6 +46,7 @@ class ProposalEventPublisherTest {
     @Test
     void publishProposalAcceptedShouldSendExpectedEvent() {
         Proposal proposal = proposal(101L, 201L, 301L);
+        proposal.setFreelancerEmail("freelancer@example.com");
         proposal.setAcceptedAt(Instant.parse("2026-02-27T10:15:30Z"));
 
         proposalEventPublisher.publishProposalAccepted(proposal, 901L);
@@ -53,7 +54,7 @@ class ProposalEventPublisherTest {
         verify(rabbitTemplate).convertAndSend(
                 eq(EventTopics.EXCHANGE_NAME),
                 eq(EventTopics.PROPOSAL_ACCEPTED_ROUTING_KEY),
-                eq(new ProposalAcceptedEvent(101L, 201L, 901L, 301L, proposal.getAcceptedAt()))
+                eq(new ProposalAcceptedEvent(101L, 201L, 901L, 301L, "freelancer@example.com", proposal.getAcceptedAt()))
         );
     }
 

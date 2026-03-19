@@ -28,9 +28,11 @@ import com.skillbridge.job_service.dto.CreateJobRequest;
 import com.skillbridge.job_service.dto.FollowedCompanyResponse;
 import com.skillbridge.job_service.dto.JobDashboardResponse;
 import com.skillbridge.job_service.dto.JobResponse;
+import com.skillbridge.job_service.dto.JobSearchReindexResponse;
 import com.skillbridge.job_service.dto.PagedResult;
 import com.skillbridge.job_service.dto.UpdateJobStatusRequest;
 import com.skillbridge.job_service.security.JwtUserPrincipal;
+import com.skillbridge.job_service.service.JobSearchAdminService;
 import com.skillbridge.job_service.service.JobService;
 
 import jakarta.validation.Valid;
@@ -45,13 +47,16 @@ public class JobController {
     private static final String INTERNAL_API_KEY_HEADER = "X-Internal-Api-Key";
 
     private final JobService jobService;
+    private final JobSearchAdminService jobSearchAdminService;
     private final String internalApiKey;
 
     public JobController(
             JobService jobService,
+            JobSearchAdminService jobSearchAdminService,
             @Value("${app.internal.api-key}") String internalApiKey
     ) {
         this.jobService = jobService;
+        this.jobSearchAdminService = jobSearchAdminService;
         this.internalApiKey = internalApiKey;
     }
 
@@ -196,6 +201,23 @@ public class JobController {
     ) {
         requireInternalApiKey(providedApiKey);
         return jobService.updateJobStatusInternal(jobId, request.status());
+    }
+
+    @PostMapping("/internal/search/reindex")
+    public JobSearchReindexResponse reindexSearch(
+            @RequestHeader(name = INTERNAL_API_KEY_HEADER, required = false) String providedApiKey
+    ) {
+        requireInternalApiKey(providedApiKey);
+        return jobSearchAdminService.reindexAllJobs();
+    }
+
+    @PostMapping("/internal/search/reindex/{jobId}")
+    public JobSearchReindexResponse reindexSingleJob(
+            @PathVariable @Min(1) Long jobId,
+            @RequestHeader(name = INTERNAL_API_KEY_HEADER, required = false) String providedApiKey
+    ) {
+        requireInternalApiKey(providedApiKey);
+        return jobSearchAdminService.reindexJob(jobId);
     }
 
     private void requireInternalApiKey(String providedApiKey) {

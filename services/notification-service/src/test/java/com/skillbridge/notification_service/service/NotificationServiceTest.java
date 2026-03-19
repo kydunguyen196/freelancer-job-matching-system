@@ -32,6 +32,9 @@ class NotificationServiceTest {
     @Mock
     private NotificationRepository notificationRepository;
 
+    @Mock
+    private EmailDeliveryService emailDeliveryService;
+
     @InjectMocks
     private NotificationService notificationService;
 
@@ -77,18 +80,20 @@ class NotificationServiceTest {
         assertThat(saved.getTitle()).isEqualTo("New Proposal");
         assertThat(saved.getMessage()).isEqualTo("Proposal received");
         assertThat(saved.isRead()).isFalse();
+        verify(emailDeliveryService).enqueueEmail(NotificationType.PROPOSAL_CREATED, null, "New Proposal", "Proposal received");
     }
 
     @Test
     void createNotificationShouldParseStringType() {
         when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        notificationService.createNotificationByType(77L, "job_published", " New job ", " Company posted a new job ");
+        notificationService.createNotificationByType(77L, "job_published", " New job ", " Company posted a new job ", null);
 
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository).save(captor.capture());
         assertThat(captor.getValue().getType()).isEqualTo(NotificationType.JOB_PUBLISHED);
         assertThat(captor.getValue().getTitle()).isEqualTo("New job");
+        verify(emailDeliveryService).enqueueEmail(NotificationType.JOB_PUBLISHED, null, "New job", "Company posted a new job");
     }
 
     @Test

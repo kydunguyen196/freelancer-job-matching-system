@@ -4,7 +4,9 @@ import java.util.List;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -14,17 +16,20 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.skillbridge.proposal_service.domain.ProposalStatus;
 import com.skillbridge.proposal_service.dto.CreateProposalRequest;
 import com.skillbridge.proposal_service.dto.PagedResult;
+import com.skillbridge.proposal_service.dto.ProposalCvFileResponse;
 import com.skillbridge.proposal_service.dto.ProposalDashboardResponse;
 import com.skillbridge.proposal_service.dto.ProposalResponse;
 import com.skillbridge.proposal_service.dto.RejectProposalRequest;
 import com.skillbridge.proposal_service.dto.ReviewProposalRequest;
 import com.skillbridge.proposal_service.dto.ScheduleInterviewRequest;
 import com.skillbridge.proposal_service.security.JwtUserPrincipal;
+import com.skillbridge.proposal_service.service.ProposalCvService;
 import com.skillbridge.proposal_service.service.ProposalService;
 
 import jakarta.validation.Valid;
@@ -35,9 +40,11 @@ import jakarta.validation.constraints.Min;
 public class ProposalController {
 
     private final ProposalService proposalService;
+    private final ProposalCvService proposalCvService;
 
-    public ProposalController(ProposalService proposalService) {
+    public ProposalController(ProposalService proposalService, ProposalCvService proposalCvService) {
         this.proposalService = proposalService;
+        this.proposalCvService = proposalCvService;
     }
 
     @PostMapping("/proposals")
@@ -85,6 +92,38 @@ public class ProposalController {
             Authentication authentication
     ) {
         return proposalService.getProposalById(proposalId, extractPrincipal(authentication));
+    }
+
+    @PostMapping("/proposals/{proposalId}/cv")
+    public ResponseEntity<ProposalCvFileResponse> uploadProposalCv(
+            @PathVariable @Min(1) Long proposalId,
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication
+    ) {
+        JwtUserPrincipal principal = extractPrincipal(authentication);
+        ProposalCvFileResponse response = proposalCvService.uploadCv(proposalId, file, principal);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/proposals/{proposalId}/cv")
+    public ProposalCvFileResponse getProposalCv(
+            @PathVariable @Min(1) Long proposalId,
+            Authentication authentication
+    ) {
+        return proposalCvService.getCvMetadata(proposalId, extractPrincipal(authentication));
+    }
+
+    @GetMapping("/proposals/{proposalId}/cv/download")
+    public ResponseEntity<ByteArrayResource> downloadProposalCv(
+            @PathVariable @Min(1) Long proposalId,
+            Authentication authentication
+    ) {
+        ProposalCvService.DownloadedCvFile downloadedFile = proposalCvService.downloadCv(proposalId, extractPrincipal(authentication));
+        MediaType mediaType = MediaType.parseMediaType(downloadedFile.contentType());
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + sanitizeDownloadFileName(downloadedFile.fileName()) + "\"")
+                .body(new ByteArrayResource(downloadedFile.content()));
     }
 
     @PatchMapping("/proposals/{proposalId}/review")
@@ -140,5 +179,9 @@ public class ProposalController {
         headers.add("X-Total-Elements", String.valueOf(result.totalElements()));
         headers.add("X-Total-Pages", String.valueOf(result.totalPages()));
         return headers;
+    }
+
+    private String sanitizeDownloadFileName(String fileName) {
+        return fileName.replace("\"", "_").replace("\r", "_").replace("\n", "_");
     }
 }

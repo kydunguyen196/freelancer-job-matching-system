@@ -32,6 +32,7 @@ import com.skillbridge.proposal_service.domain.ProposalStatus;
 import com.skillbridge.proposal_service.dto.CreateProposalRequest;
 import com.skillbridge.proposal_service.dto.ProposalResponse;
 import com.skillbridge.proposal_service.dto.RejectProposalRequest;
+import com.skillbridge.proposal_service.dto.ScheduleInterviewRequest;
 import com.skillbridge.proposal_service.messaging.ProposalEventPublisher;
 import com.skillbridge.proposal_service.repository.ProposalRepository;
 import com.skillbridge.proposal_service.security.JwtUserPrincipal;
@@ -44,6 +45,9 @@ class ProposalServiceTest {
 
     @Mock
     private ProposalEventPublisher proposalEventPublisher;
+
+    @Mock
+    private CalendarService calendarService;
 
     @Test
     void createProposalShouldRequireFreelancerRole() {
@@ -235,6 +239,114 @@ class ProposalServiceTest {
     }
 
     @Test
+    void scheduleInterviewShouldPersistGoogleEventIdWhenCalendarSucceeds() throws Exception {
+        AtomicInteger notificationCallCount = new AtomicInteger();
+
+        try (TestServer jobServer = startServer(exchange -> {
+            if ("GET".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getPath().equals("/jobs/55")) {
+                writeJson(exchange, 200, "{\"id\":55,\"clientId\":300,\"title\":\"Backend Engineer\",\"status\":\"OPEN\"}");
+                return;
+            }
+            writeJson(exchange, 404, "{\"message\":\"not found\"}");
+        });
+             TestServer contractServer = startServer(exchange -> writeJson(exchange, 200, "{}"));
+             TestServer notificationServer = startServer(exchange -> {
+                 if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getPath().equals("/notifications/internal")) {
+                     notificationCallCount.incrementAndGet();
+                     writeJson(exchange, 200, "{\"status\":\"ok\"}");
+                     return;
+                 }
+                 writeJson(exchange, 404, "{\"message\":\"not found\"}");
+             })) {
+
+            ProposalService proposalService = createService(jobServer.baseUrl(), contractServer.baseUrl(), notificationServer.baseUrl());
+
+            Proposal proposal = new Proposal();
+            proposal.setId(66L);
+            proposal.setJobId(55L);
+            proposal.setClientId(300L);
+            proposal.setFreelancerId(777L);
+            proposal.setFreelancerEmail("candidate@example.com");
+            proposal.setCoverLetter("I have relevant backend experience.");
+            proposal.setPrice(BigDecimal.valueOf(900));
+            proposal.setDurationDays(14);
+            proposal.setStatus(ProposalStatus.REVIEWING);
+
+            when(proposalRepository.findById(66L)).thenReturn(Optional.of(proposal));
+            when(proposalRepository.save(any(Proposal.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(calendarService.createInterviewEvent(any()))
+                    .thenReturn(CalendarService.CreateInterviewEventResult.success("google-event-123"));
+
+            JwtUserPrincipal client = new JwtUserPrincipal(300L, "recruiter@example.com", "CLIENT");
+            ProposalResponse response = proposalService.scheduleInterview(
+                    66L,
+                    new ScheduleInterviewRequest(
+                            Instant.now().plusSeconds(3600),
+                            Instant.now().plusSeconds(7200),
+                            "https://meet.google.com/abc-defg-hij",
+                            "Please join on time"
+                    ),
+                    client
+            );
+
+            assertThat(response.status()).isEqualTo("INTERVIEW_SCHEDULED");
+            assertThat(response.googleEventId()).isEqualTo("google-event-123");
+            assertThat(response.calendarWarning()).isNull();
+            assertThat(response.interviewEndsAt()).isAfter(response.interviewScheduledAt());
+            assertThat(notificationCallCount.get()).isEqualTo(1);
+            verify(calendarService).createInterviewEvent(any());
+        }
+    }
+
+    @Test
+    void scheduleInterviewShouldNotFailWhenCalendarFails() throws Exception {
+        try (TestServer jobServer = startServer(exchange -> {
+            if ("GET".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getPath().equals("/jobs/55")) {
+                writeJson(exchange, 200, "{\"id\":55,\"clientId\":300,\"title\":\"Backend Engineer\",\"status\":\"OPEN\"}");
+                return;
+            }
+            writeJson(exchange, 404, "{\"message\":\"not found\"}");
+        });
+             TestServer contractServer = startServer(exchange -> writeJson(exchange, 200, "{}"));
+             TestServer notificationServer = startServer(exchange -> writeJson(exchange, 200, "{\"status\":\"ok\"}"))) {
+
+            ProposalService proposalService = createService(jobServer.baseUrl(), contractServer.baseUrl(), notificationServer.baseUrl());
+
+            Proposal proposal = new Proposal();
+            proposal.setId(67L);
+            proposal.setJobId(55L);
+            proposal.setClientId(300L);
+            proposal.setFreelancerId(777L);
+            proposal.setFreelancerEmail("candidate@example.com");
+            proposal.setCoverLetter("I have relevant backend experience.");
+            proposal.setPrice(BigDecimal.valueOf(900));
+            proposal.setDurationDays(14);
+            proposal.setStatus(ProposalStatus.REVIEWING);
+
+            when(proposalRepository.findById(67L)).thenReturn(Optional.of(proposal));
+            when(proposalRepository.save(any(Proposal.class))).thenAnswer(invocation -> invocation.getArgument(0));
+            when(calendarService.createInterviewEvent(any()))
+                    .thenReturn(CalendarService.CreateInterviewEventResult.warning("Google Calendar event could not be created"));
+
+            JwtUserPrincipal client = new JwtUserPrincipal(300L, "recruiter@example.com", "CLIENT");
+            ProposalResponse response = proposalService.scheduleInterview(
+                    67L,
+                    new ScheduleInterviewRequest(
+                            Instant.now().plusSeconds(3600),
+                            Instant.now().plusSeconds(7200),
+                            null,
+                            null
+                    ),
+                    client
+            );
+
+            assertThat(response.status()).isEqualTo("INTERVIEW_SCHEDULED");
+            assertThat(response.googleEventId()).isNull();
+            assertThat(response.calendarWarning()).isEqualTo("Google Calendar event could not be created");
+        }
+    }
+
+    @Test
     void listProposalsByJobShouldRejectNonOwnerClient() throws Exception {
         try (TestServer jobServer = startServer(exchange -> {
             if ("GET".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getPath().equals("/jobs/55")) {
@@ -260,6 +372,7 @@ class ProposalServiceTest {
         return new ProposalService(
                 proposalRepository,
                 proposalEventPublisher,
+                calendarService,
                 jobBaseUrl,
                 contractBaseUrl,
                 notificationBaseUrl,

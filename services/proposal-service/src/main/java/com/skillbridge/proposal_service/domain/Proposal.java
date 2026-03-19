@@ -71,11 +71,16 @@ public class Proposal {
 
     private Instant interviewScheduledAt;
 
+    private Instant interviewEndsAt;
+
     @Column(length = 512)
     private String interviewMeetingLink;
 
     @Column(length = 2000)
     private String interviewNotes;
+
+    @Column(length = 255)
+    private String googleEventId;
 
     @Column(name = "accepted_by_client_id")
     private Long acceptedByClientId;
@@ -223,6 +228,14 @@ public class Proposal {
         this.interviewScheduledAt = interviewScheduledAt;
     }
 
+    public Instant getInterviewEndsAt() {
+        return interviewEndsAt;
+    }
+
+    public void setInterviewEndsAt(Instant interviewEndsAt) {
+        this.interviewEndsAt = interviewEndsAt;
+    }
+
     public String getInterviewMeetingLink() {
         return interviewMeetingLink;
     }
@@ -237,6 +250,14 @@ public class Proposal {
 
     public void setInterviewNotes(String interviewNotes) {
         this.interviewNotes = interviewNotes;
+    }
+
+    public String getGoogleEventId() {
+        return googleEventId;
+    }
+
+    public void setGoogleEventId(String googleEventId) {
+        this.googleEventId = googleEventId;
     }
 
     public Long getAcceptedByClientId() {

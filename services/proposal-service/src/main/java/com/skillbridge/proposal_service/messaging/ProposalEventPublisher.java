@@ -39,6 +39,7 @@ public class ProposalEventPublisher {
                 proposal.getJobId(),
                 clientId,
                 proposal.getFreelancerId(),
+                proposal.getFreelancerEmail(),
                 proposal.getAcceptedAt()
         );
         publish(EventTopics.PROPOSAL_ACCEPTED_ROUTING_KEY, event, "ProposalAcceptedEvent", proposal.getId());

@@ -19,9 +19,14 @@ import com.skillbridge.notification_service.security.JwtUserPrincipal;
 public class NotificationService {
 
     private final NotificationRepository notificationRepository;
+    private final EmailDeliveryService emailDeliveryService;
 
-    public NotificationService(NotificationRepository notificationRepository) {
+    public NotificationService(
+            NotificationRepository notificationRepository,
+            EmailDeliveryService emailDeliveryService
+    ) {
         this.notificationRepository = notificationRepository;
+        this.emailDeliveryService = emailDeliveryService;
     }
 
     @Transactional(readOnly = true)
@@ -52,6 +57,17 @@ public class NotificationService {
 
     @Transactional
     public void createNotification(Long recipientUserId, NotificationType type, String title, String message) {
+        createNotification(recipientUserId, type, title, message, null);
+    }
+
+    @Transactional
+    public void createNotification(
+            Long recipientUserId,
+            NotificationType type,
+            String title,
+            String message,
+            String recipientEmail
+    ) {
         if (recipientUserId == null || recipientUserId < 1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "recipientUserId must be greater than 0");
         }
@@ -66,11 +82,12 @@ public class NotificationService {
         notification.setMessage(normalizeRequiredText(message, "message"));
         notification.setRead(false);
         notificationRepository.save(notification);
+        emailDeliveryService.enqueueEmail(type, normalizeEmail(recipientEmail), notification.getTitle(), notification.getMessage());
     }
 
     @Transactional
-    public void createNotificationByType(Long recipientUserId, String type, String title, String message) {
-        createNotification(recipientUserId, parseType(type), title, message);
+    public void createNotificationByType(Long recipientUserId, String type, String title, String message, String recipientEmail) {
+        createNotification(recipientUserId, parseType(type), title, message, recipientEmail);
     }
 
     private NotificationType parseType(String type) {
@@ -82,6 +99,14 @@ public class NotificationService {
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported notification type");
         }
+    }
+
+    private String normalizeEmail(String email) {
+        if (email == null) {
+            return null;
+        }
+        String normalized = email.trim().toLowerCase(Locale.ROOT);
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private Long requireUserId(JwtUserPrincipal principal) {
