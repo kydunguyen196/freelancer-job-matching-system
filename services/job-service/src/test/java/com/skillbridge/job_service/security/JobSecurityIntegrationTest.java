@@ -22,8 +22,8 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MockMvc;
 
 import com.skillbridge.job_service.config.JwtProperties;
 import com.skillbridge.job_service.config.SecurityConfig;
@@ -41,7 +41,8 @@ import io.jsonwebtoken.security.Keys;
 @TestPropertySource(properties = {
         "app.jwt.secret=abcdefghijklmnopqrstuvwxyz123456",
         "app.jwt.access-token-expiration-ms=900000",
-        "app.jwt.refresh-token-expiration-ms=604800000"
+        "app.jwt.refresh-token-expiration-ms=604800000",
+        "app.internal.api-key=internal-key"
 })
 class JobSecurityIntegrationTest {
 
@@ -61,7 +62,8 @@ class JobSecurityIntegrationTest {
                                   "description":"Need backend",
                                   "budgetMin":100,
                                   "budgetMax":200,
-                                  "tags":["java"]
+                                  "tags":["java"],
+                                  "employmentType":"FULL_TIME"
                                 }
                                 """))
                 .andExpect(status().isUnauthorized());
@@ -78,7 +80,8 @@ class JobSecurityIntegrationTest {
                                   "description":"Need backend",
                                   "budgetMin":100,
                                   "budgetMax":200,
-                                  "tags":["java"]
+                                  "tags":["java"],
+                                  "employmentType":"FULL_TIME"
                                 }
                                 """))
                 .andExpect(status().isForbidden());
@@ -95,9 +98,18 @@ class JobSecurityIntegrationTest {
                 List.of("java"),
                 "OPEN",
                 99L,
+                "Acme",
+                "HCM",
+                "FULL_TIME",
+                true,
+                3,
                 Instant.now(),
                 Instant.now(),
-                null
+                Instant.now(),
+                null,
+                null,
+                false,
+                false
         ));
 
         mockMvc.perform(post("/jobs")
@@ -109,7 +121,8 @@ class JobSecurityIntegrationTest {
                                   "description":"Need backend",
                                   "budgetMin":100,
                                   "budgetMax":200,
-                                  "tags":["java"]
+                                  "tags":["java"],
+                                  "employmentType":"FULL_TIME"
                                 }
                                 """))
                 .andExpect(status().isCreated());
@@ -117,8 +130,24 @@ class JobSecurityIntegrationTest {
 
     @Test
     void listJobsShouldBePublic() throws Exception {
-        when(jobService.listJobs(eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(0), eq(20)))
-                .thenReturn(new PagedResult<>(List.of(), 0, 0, 0, 20));
+        when(jobService.listJobs(
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq(null),
+                eq("latest"),
+                eq(0),
+                eq(20),
+                eq(null)
+        )).thenReturn(new PagedResult<>(List.of(), 0, 0, 0, 20));
 
         mockMvc.perform(get("/jobs"))
                 .andExpect(status().isOk());

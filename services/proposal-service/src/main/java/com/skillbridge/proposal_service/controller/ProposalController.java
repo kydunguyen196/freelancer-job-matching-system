@@ -2,8 +2,8 @@ package com.skillbridge.proposal_service.controller;
 
 import java.util.List;
 
-import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
@@ -16,9 +16,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.skillbridge.proposal_service.domain.ProposalStatus;
 import com.skillbridge.proposal_service.dto.CreateProposalRequest;
 import com.skillbridge.proposal_service.dto.PagedResult;
+import com.skillbridge.proposal_service.dto.ProposalDashboardResponse;
 import com.skillbridge.proposal_service.dto.ProposalResponse;
+import com.skillbridge.proposal_service.dto.RejectProposalRequest;
+import com.skillbridge.proposal_service.dto.ReviewProposalRequest;
+import com.skillbridge.proposal_service.dto.ScheduleInterviewRequest;
 import com.skillbridge.proposal_service.security.JwtUserPrincipal;
 import com.skillbridge.proposal_service.service.ProposalService;
 
@@ -47,14 +52,69 @@ public class ProposalController {
     @GetMapping("/jobs/{jobId}/proposals")
     public ResponseEntity<List<ProposalResponse>> listProposalsByJob(
             @PathVariable @Min(1) Long jobId,
+            @RequestParam(required = false) ProposalStatus status,
             @RequestParam(defaultValue = "0") @Min(0) Integer page,
             @RequestParam(defaultValue = "20") @Min(1) Integer size,
             Authentication authentication
     ) {
         JwtUserPrincipal principal = extractPrincipal(authentication);
-        PagedResult<ProposalResponse> result = proposalService.listProposalsByJob(jobId, principal, page, size);
-        HttpHeaders headers = buildPagingHeaders(result);
-        return ResponseEntity.ok().headers(headers).body(result.content());
+        PagedResult<ProposalResponse> result = proposalService.listProposalsByJob(jobId, status, principal, page, size);
+        return ResponseEntity.ok().headers(buildPagingHeaders(result)).body(result.content());
+    }
+
+    @GetMapping("/proposals/me")
+    public ResponseEntity<List<ProposalResponse>> listMyProposals(
+            @RequestParam(required = false) ProposalStatus status,
+            @RequestParam(defaultValue = "0") @Min(0) Integer page,
+            @RequestParam(defaultValue = "20") @Min(1) Integer size,
+            Authentication authentication
+    ) {
+        JwtUserPrincipal principal = extractPrincipal(authentication);
+        PagedResult<ProposalResponse> result = proposalService.listMyProposals(status, principal, page, size);
+        return ResponseEntity.ok().headers(buildPagingHeaders(result)).body(result.content());
+    }
+
+    @GetMapping("/proposals/dashboard/me")
+    public ProposalDashboardResponse getMyDashboard(Authentication authentication) {
+        return proposalService.getMyDashboard(extractPrincipal(authentication));
+    }
+
+    @GetMapping("/proposals/{proposalId}")
+    public ProposalResponse getProposalById(
+            @PathVariable @Min(1) Long proposalId,
+            Authentication authentication
+    ) {
+        return proposalService.getProposalById(proposalId, extractPrincipal(authentication));
+    }
+
+    @PatchMapping("/proposals/{proposalId}/review")
+    public ProposalResponse reviewProposal(
+            @PathVariable @Min(1) Long proposalId,
+            @Valid @RequestBody ReviewProposalRequest request,
+            Authentication authentication
+    ) {
+        JwtUserPrincipal principal = extractPrincipal(authentication);
+        return proposalService.reviewProposal(proposalId, request, principal);
+    }
+
+    @PostMapping("/proposals/{proposalId}/interview")
+    public ProposalResponse scheduleInterview(
+            @PathVariable @Min(1) Long proposalId,
+            @Valid @RequestBody ScheduleInterviewRequest request,
+            Authentication authentication
+    ) {
+        JwtUserPrincipal principal = extractPrincipal(authentication);
+        return proposalService.scheduleInterview(proposalId, request, principal);
+    }
+
+    @PatchMapping("/proposals/{proposalId}/reject")
+    public ProposalResponse rejectProposal(
+            @PathVariable @Min(1) Long proposalId,
+            @Valid @RequestBody RejectProposalRequest request,
+            Authentication authentication
+    ) {
+        JwtUserPrincipal principal = extractPrincipal(authentication);
+        return proposalService.rejectProposal(proposalId, request, principal);
     }
 
     @PatchMapping("/proposals/{proposalId}/accept")

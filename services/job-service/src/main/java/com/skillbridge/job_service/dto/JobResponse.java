@@ -13,8 +13,17 @@ public record JobResponse(
         List<String> tags,
         String status,
         Long clientId,
+        String companyName,
+        String location,
+        String employmentType,
+        boolean remote,
+        Integer experienceYears,
         Instant createdAt,
         Instant updatedAt,
-        Instant closedAt
+        Instant publishedAt,
+        Instant expiresAt,
+        Instant closedAt,
+        boolean savedByCurrentUser,
+        boolean companyFollowedByCurrentUser
 ) {
 }

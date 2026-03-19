@@ -52,7 +52,10 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.POST, "/proposals").hasRole("FREELANCER")
                         .requestMatchers(HttpMethod.GET, "/jobs/*/proposals").hasRole("CLIENT")
-                        .requestMatchers(HttpMethod.PATCH, "/proposals/*/accept").hasRole("CLIENT")
+                        .requestMatchers(HttpMethod.GET, "/proposals/me", "/proposals/dashboard/me").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/proposals/*").authenticated()
+                        .requestMatchers(HttpMethod.PATCH, "/proposals/*/accept", "/proposals/*/review", "/proposals/*/reject").hasRole("CLIENT")
+                        .requestMatchers(HttpMethod.POST, "/proposals/*/interview").hasRole("CLIENT")
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

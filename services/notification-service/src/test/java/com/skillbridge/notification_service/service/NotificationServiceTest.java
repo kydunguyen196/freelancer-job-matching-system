@@ -80,6 +80,18 @@ class NotificationServiceTest {
     }
 
     @Test
+    void createNotificationShouldParseStringType() {
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        notificationService.createNotificationByType(77L, "job_published", " New job ", " Company posted a new job ");
+
+        ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
+        verify(notificationRepository).save(captor.capture());
+        assertThat(captor.getValue().getType()).isEqualTo(NotificationType.JOB_PUBLISHED);
+        assertThat(captor.getValue().getTitle()).isEqualTo("New job");
+    }
+
+    @Test
     void markAsReadShouldMarkUnreadNotification() {
         Notification unread = new Notification();
         unread.setId(7L);

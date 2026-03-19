@@ -34,6 +34,9 @@ public class Proposal {
     @Column(name = "job_id", nullable = false)
     private Long jobId;
 
+    @Column(name = "client_id")
+    private Long clientId;
+
     @Column(name = "freelancer_id", nullable = false)
     private Long freelancerId;
 
@@ -52,6 +55,27 @@ public class Proposal {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private ProposalStatus status;
+
+    @Column(name = "reviewed_by_client_id")
+    private Long reviewedByClientId;
+
+    private Instant reviewedAt;
+
+    @Column(name = "rejected_by_client_id")
+    private Long rejectedByClientId;
+
+    private Instant rejectedAt;
+
+    @Column(length = 2000)
+    private String feedbackMessage;
+
+    private Instant interviewScheduledAt;
+
+    @Column(length = 512)
+    private String interviewMeetingLink;
+
+    @Column(length = 2000)
+    private String interviewNotes;
 
     @Column(name = "accepted_by_client_id")
     private Long acceptedByClientId;
@@ -93,6 +117,14 @@ public class Proposal {
 
     public void setJobId(Long jobId) {
         this.jobId = jobId;
+    }
+
+    public Long getClientId() {
+        return clientId;
+    }
+
+    public void setClientId(Long clientId) {
+        this.clientId = clientId;
     }
 
     public Long getFreelancerId() {
@@ -141,6 +173,70 @@ public class Proposal {
 
     public void setStatus(ProposalStatus status) {
         this.status = status;
+    }
+
+    public Long getReviewedByClientId() {
+        return reviewedByClientId;
+    }
+
+    public void setReviewedByClientId(Long reviewedByClientId) {
+        this.reviewedByClientId = reviewedByClientId;
+    }
+
+    public Instant getReviewedAt() {
+        return reviewedAt;
+    }
+
+    public void setReviewedAt(Instant reviewedAt) {
+        this.reviewedAt = reviewedAt;
+    }
+
+    public Long getRejectedByClientId() {
+        return rejectedByClientId;
+    }
+
+    public void setRejectedByClientId(Long rejectedByClientId) {
+        this.rejectedByClientId = rejectedByClientId;
+    }
+
+    public Instant getRejectedAt() {
+        return rejectedAt;
+    }
+
+    public void setRejectedAt(Instant rejectedAt) {
+        this.rejectedAt = rejectedAt;
+    }
+
+    public String getFeedbackMessage() {
+        return feedbackMessage;
+    }
+
+    public void setFeedbackMessage(String feedbackMessage) {
+        this.feedbackMessage = feedbackMessage;
+    }
+
+    public Instant getInterviewScheduledAt() {
+        return interviewScheduledAt;
+    }
+
+    public void setInterviewScheduledAt(Instant interviewScheduledAt) {
+        this.interviewScheduledAt = interviewScheduledAt;
+    }
+
+    public String getInterviewMeetingLink() {
+        return interviewMeetingLink;
+    }
+
+    public void setInterviewMeetingLink(String interviewMeetingLink) {
+        this.interviewMeetingLink = interviewMeetingLink;
+    }
+
+    public String getInterviewNotes() {
+        return interviewNotes;
+    }
+
+    public void setInterviewNotes(String interviewNotes) {
+        this.interviewNotes = interviewNotes;
     }
 
     public Long getAcceptedByClientId() {

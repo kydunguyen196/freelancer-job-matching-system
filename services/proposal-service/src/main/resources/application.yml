@@ -43,6 +43,7 @@ app:
   services:
     job-base-url: ${APP_SERVICES_JOB_BASE_URL:http://localhost:8083}
     contract-base-url: ${APP_SERVICES_CONTRACT_BASE_URL:http://localhost:8085}
+    notification-base-url: ${APP_SERVICES_NOTIFICATION_BASE_URL:http://localhost:8086}
   internal:
     api-key: ${APP_INTERNAL_API_KEY:change-this-contract-internal-api-key}
 

@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -38,7 +39,8 @@ import io.jsonwebtoken.security.Keys;
 @TestPropertySource(properties = {
         "app.jwt.secret=abcdefghijklmnopqrstuvwxyz123456",
         "app.jwt.access-token-expiration-ms=900000",
-        "app.jwt.refresh-token-expiration-ms=604800000"
+        "app.jwt.refresh-token-expiration-ms=604800000",
+        "app.internal.api-key=internal-key"
 })
 class NotificationControllerIntegrationTest {
 
@@ -107,6 +109,37 @@ class NotificationControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(9))
                 .andExpect(jsonPath("$.read").value(true));
+    }
+
+    @Test
+    void createInternalNotificationShouldRequireInternalApiKey() throws Exception {
+        mockMvc.perform(post("/notifications/internal")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "recipientUserId":50,
+                                  "type":"JOB_PUBLISHED",
+                                  "title":"New job",
+                                  "message":"A company you follow posted a new job"
+                                }
+                                """))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void createInternalNotificationShouldAllowValidInternalApiKey() throws Exception {
+        mockMvc.perform(post("/notifications/internal")
+                        .header("X-Internal-Api-Key", "internal-key")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "recipientUserId":50,
+                                  "type":"JOB_PUBLISHED",
+                                  "title":"New job",
+                                  "message":"A company you follow posted a new job"
+                                }
+                                """))
+                .andExpect(status().isCreated());
     }
 
     private String tokenFor(Long userId, String role) {

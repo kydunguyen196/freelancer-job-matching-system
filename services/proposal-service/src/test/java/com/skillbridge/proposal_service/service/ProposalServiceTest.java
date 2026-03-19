@@ -12,6 +12,7 @@ import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -30,6 +31,7 @@ import com.skillbridge.proposal_service.domain.Proposal;
 import com.skillbridge.proposal_service.domain.ProposalStatus;
 import com.skillbridge.proposal_service.dto.CreateProposalRequest;
 import com.skillbridge.proposal_service.dto.ProposalResponse;
+import com.skillbridge.proposal_service.dto.RejectProposalRequest;
 import com.skillbridge.proposal_service.messaging.ProposalEventPublisher;
 import com.skillbridge.proposal_service.repository.ProposalRepository;
 import com.skillbridge.proposal_service.security.JwtUserPrincipal;
@@ -45,13 +47,7 @@ class ProposalServiceTest {
 
     @Test
     void createProposalShouldRequireFreelancerRole() {
-        ProposalService proposalService = new ProposalService(
-                proposalRepository,
-                proposalEventPublisher,
-                "http://localhost:65530",
-                "http://localhost:65531",
-                "internal-key"
-        );
+        ProposalService proposalService = createService("http://localhost:65530", "http://localhost:65531", "http://localhost:65532");
         CreateProposalRequest request = new CreateProposalRequest(
                 9L,
                 "I can help",
@@ -74,15 +70,10 @@ class ProposalServiceTest {
             }
             writeJson(exchange, 404, "{\"message\":\"not found\"}");
         });
-             TestServer contractServer = startServer(exchange -> writeJson(exchange, 200, "{}"))) {
+             TestServer contractServer = startServer(exchange -> writeJson(exchange, 200, "{}"));
+             TestServer notificationServer = startServer(exchange -> writeJson(exchange, 200, "{}"))) {
 
-            ProposalService proposalService = new ProposalService(
-                    proposalRepository,
-                    proposalEventPublisher,
-                    jobServer.baseUrl(),
-                    contractServer.baseUrl(),
-                    "internal-key"
-            );
+            ProposalService proposalService = createService(jobServer.baseUrl(), contractServer.baseUrl(), notificationServer.baseUrl());
 
             CreateProposalRequest request = new CreateProposalRequest(
                     11L,
@@ -110,15 +101,10 @@ class ProposalServiceTest {
             }
             writeJson(exchange, 404, "{\"message\":\"not found\"}");
         });
-             TestServer contractServer = startServer(exchange -> writeJson(exchange, 200, "{}"))) {
+             TestServer contractServer = startServer(exchange -> writeJson(exchange, 200, "{}"));
+             TestServer notificationServer = startServer(exchange -> writeJson(exchange, 200, "{}"))) {
 
-            ProposalService proposalService = new ProposalService(
-                    proposalRepository,
-                    proposalEventPublisher,
-                    jobServer.baseUrl(),
-                    contractServer.baseUrl(),
-                    "internal-key"
-            );
+            ProposalService proposalService = createService(jobServer.baseUrl(), contractServer.baseUrl(), notificationServer.baseUrl());
 
             CreateProposalRequest request = new CreateProposalRequest(
                     21L,
@@ -135,14 +121,20 @@ class ProposalServiceTest {
     }
 
     @Test
-    void acceptProposalShouldCreateContractAndPublishEvent() throws Exception {
+    void acceptProposalShouldCreateContractPublishEventAndSyncJobStatus() throws Exception {
         AtomicInteger contractCallCount = new AtomicInteger();
-        AtomicReference<String> lastInternalApiKey = new AtomicReference<>();
-        AtomicReference<String> lastBody = new AtomicReference<>();
+        AtomicInteger jobStatusUpdateCount = new AtomicInteger();
+        AtomicReference<String> lastJobInternalApiKey = new AtomicReference<>();
+        AtomicReference<String> lastJobStatusBody = new AtomicReference<>();
+        AtomicReference<String> lastContractBody = new AtomicReference<>();
 
         try (TestServer jobServer = startServer(exchange -> {
-            if ("GET".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getPath().equals("/jobs/31")) {
-                writeJson(exchange, 200, "{\"id\":31,\"clientId\":900,\"status\":\"OPEN\"}");
+            if ("PATCH".equals(exchange.getRequestMethod())
+                    && exchange.getRequestURI().getPath().equals("/jobs/internal/31/status")) {
+                jobStatusUpdateCount.incrementAndGet();
+                lastJobInternalApiKey.set(exchange.getRequestHeaders().getFirst("X-Internal-Api-Key"));
+                lastJobStatusBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                writeJson(exchange, 200, "{\"status\":\"ok\"}");
                 return;
             }
             writeJson(exchange, 404, "{\"message\":\"not found\"}");
@@ -151,25 +143,20 @@ class ProposalServiceTest {
                  if ("POST".equals(exchange.getRequestMethod())
                          && exchange.getRequestURI().getPath().equals("/contracts/internal/from-proposal")) {
                      contractCallCount.incrementAndGet();
-                     lastInternalApiKey.set(exchange.getRequestHeaders().getFirst("X-Internal-Api-Key"));
-                     lastBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                     lastContractBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
                      writeJson(exchange, 200, "{\"status\":\"ok\"}");
                      return;
                  }
                  writeJson(exchange, 404, "{\"message\":\"not found\"}");
-             })) {
+             });
+             TestServer notificationServer = startServer(exchange -> writeJson(exchange, 200, "{}"))) {
 
-            ProposalService proposalService = new ProposalService(
-                    proposalRepository,
-                    proposalEventPublisher,
-                    jobServer.baseUrl(),
-                    contractServer.baseUrl(),
-                    "internal-key"
-            );
+            ProposalService proposalService = createService(jobServer.baseUrl(), contractServer.baseUrl(), notificationServer.baseUrl());
 
             Proposal pending = new Proposal();
             pending.setId(444L);
             pending.setJobId(31L);
+            pending.setClientId(900L);
             pending.setFreelancerId(777L);
             pending.setFreelancerEmail("freelancer@example.com");
             pending.setPrice(BigDecimal.valueOf(400));
@@ -177,6 +164,7 @@ class ProposalServiceTest {
             pending.setStatus(ProposalStatus.PENDING);
 
             when(proposalRepository.findById(444L)).thenReturn(Optional.of(pending));
+            when(proposalRepository.findByJobIdAndIdNot(31L, 444L)).thenReturn(java.util.List.of());
             when(proposalRepository.save(any(Proposal.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
             JwtUserPrincipal client = new JwtUserPrincipal(900L, "client@example.com", "CLIENT");
@@ -186,13 +174,63 @@ class ProposalServiceTest {
             assertThat(response.acceptedByClientId()).isEqualTo(900L);
             assertThat(response.acceptedAt()).isNotNull();
 
+            assertThat(jobStatusUpdateCount.get()).isEqualTo(1);
+            assertThat(lastJobInternalApiKey.get()).isEqualTo("internal-key");
+            assertThat(lastJobStatusBody.get()).contains("\"status\":\"IN_PROGRESS\"");
+
             assertThat(contractCallCount.get()).isEqualTo(1);
-            assertThat(lastInternalApiKey.get()).isEqualTo("internal-key");
-            assertThat(lastBody.get()).contains("\"proposalId\":444");
-            assertThat(lastBody.get()).contains("\"jobId\":31");
-            assertThat(lastBody.get()).contains("\"clientId\":900");
-            assertThat(lastBody.get()).contains("\"freelancerId\":777");
+            assertThat(lastContractBody.get()).contains("\"proposalId\":444");
+            assertThat(lastContractBody.get()).contains("\"jobId\":31");
+            assertThat(lastContractBody.get()).contains("\"clientId\":900");
+            assertThat(lastContractBody.get()).contains("\"freelancerId\":777");
             verify(proposalEventPublisher).publishProposalAccepted(any(Proposal.class), org.mockito.Mockito.eq(900L));
+        }
+    }
+
+    @Test
+    void rejectProposalShouldPersistFeedbackAndCreateNotification() throws Exception {
+        AtomicInteger notificationCallCount = new AtomicInteger();
+        AtomicReference<String> lastNotificationBody = new AtomicReference<>();
+
+        try (TestServer jobServer = startServer(exchange -> writeJson(exchange, 200, "{}"));
+             TestServer contractServer = startServer(exchange -> writeJson(exchange, 200, "{}"));
+             TestServer notificationServer = startServer(exchange -> {
+                 if ("POST".equals(exchange.getRequestMethod())
+                         && exchange.getRequestURI().getPath().equals("/notifications/internal")) {
+                     notificationCallCount.incrementAndGet();
+                     lastNotificationBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+                     writeJson(exchange, 200, "{\"status\":\"ok\"}");
+                     return;
+                 }
+                 writeJson(exchange, 404, "{\"message\":\"not found\"}");
+             })) {
+
+            ProposalService proposalService = createService(jobServer.baseUrl(), contractServer.baseUrl(), notificationServer.baseUrl());
+
+            Proposal pending = new Proposal();
+            pending.setId(88L);
+            pending.setJobId(55L);
+            pending.setClientId(300L);
+            pending.setFreelancerId(777L);
+            pending.setFreelancerEmail("freelancer@example.com");
+            pending.setStatus(ProposalStatus.REVIEWING);
+
+            when(proposalRepository.findById(88L)).thenReturn(Optional.of(pending));
+            when(proposalRepository.save(any(Proposal.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+            JwtUserPrincipal client = new JwtUserPrincipal(300L, "client@example.com", "CLIENT");
+            ProposalResponse response = proposalService.rejectProposal(
+                    88L,
+                    new RejectProposalRequest("We moved forward with another candidate."),
+                    client
+            );
+
+            assertThat(response.status()).isEqualTo("REJECTED");
+            assertThat(response.rejectedByClientId()).isEqualTo(300L);
+            assertThat(response.feedbackMessage()).contains("another candidate");
+            assertThat(notificationCallCount.get()).isEqualTo(1);
+            assertThat(lastNotificationBody.get()).contains("\"type\":\"PROPOSAL_REJECTED\"");
+            assertThat(lastNotificationBody.get()).contains("\"recipientUserId\":777");
         }
     }
 
@@ -205,22 +243,28 @@ class ProposalServiceTest {
             }
             writeJson(exchange, 404, "{\"message\":\"not found\"}");
         });
-             TestServer contractServer = startServer(exchange -> writeJson(exchange, 200, "{}"))) {
+             TestServer contractServer = startServer(exchange -> writeJson(exchange, 200, "{}"));
+             TestServer notificationServer = startServer(exchange -> writeJson(exchange, 200, "{}"))) {
 
-            ProposalService proposalService = new ProposalService(
-                    proposalRepository,
-                    proposalEventPublisher,
-                    jobServer.baseUrl(),
-                    contractServer.baseUrl(),
-                    "internal-key"
-            );
+            ProposalService proposalService = createService(jobServer.baseUrl(), contractServer.baseUrl(), notificationServer.baseUrl());
 
             JwtUserPrincipal otherClient = new JwtUserPrincipal(999L, "other@example.com", "CLIENT");
 
-            assertThatThrownBy(() -> proposalService.listProposalsByJob(55L, otherClient, 0, 20))
+            assertThatThrownBy(() -> proposalService.listProposalsByJob(55L, null, otherClient, 0, 20))
                     .isInstanceOf(ResponseStatusException.class)
                     .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
         }
+    }
+
+    private ProposalService createService(String jobBaseUrl, String contractBaseUrl, String notificationBaseUrl) {
+        return new ProposalService(
+                proposalRepository,
+                proposalEventPublisher,
+                jobBaseUrl,
+                contractBaseUrl,
+                notificationBaseUrl,
+                "internal-key"
+        );
     }
 
     private TestServer startServer(HttpHandler handler) throws IOException {

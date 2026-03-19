@@ -2,6 +2,7 @@ package com.skillbridge.notification_service.service;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -65,6 +66,22 @@ public class NotificationService {
         notification.setMessage(normalizeRequiredText(message, "message"));
         notification.setRead(false);
         notificationRepository.save(notification);
+    }
+
+    @Transactional
+    public void createNotificationByType(Long recipientUserId, String type, String title, String message) {
+        createNotification(recipientUserId, parseType(type), title, message);
+    }
+
+    private NotificationType parseType(String type) {
+        if (type == null || type.trim().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "type must not be blank");
+        }
+        try {
+            return NotificationType.valueOf(type.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unsupported notification type");
+        }
     }
 
     private Long requireUserId(JwtUserPrincipal principal) {

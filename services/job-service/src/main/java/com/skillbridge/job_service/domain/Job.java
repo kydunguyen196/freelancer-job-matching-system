@@ -34,6 +34,12 @@ public class Job {
     @Column(nullable = false, length = 4000)
     private String description;
 
+    @Column(length = 255)
+    private String companyName;
+
+    @Column(length = 255)
+    private String location;
+
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal budgetMin;
 
@@ -49,6 +55,15 @@ public class Job {
     @Column(nullable = false, length = 32)
     private JobStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    private EmploymentType employmentType = EmploymentType.CONTRACT;
+
+    @Column(nullable = false)
+    private boolean remote;
+
+    private Integer experienceYears;
+
     @Column(nullable = false, name = "client_id")
     private Long clientId;
 
@@ -57,6 +72,10 @@ public class Job {
 
     @Column(nullable = false)
     private Instant updatedAt;
+
+    private Instant publishedAt;
+
+    private Instant expiresAt;
 
     private Instant closedAt;
 
@@ -67,6 +86,9 @@ public class Job {
         updatedAt = now;
         if (status == null) {
             status = JobStatus.OPEN;
+        }
+        if (employmentType == null) {
+            employmentType = EmploymentType.CONTRACT;
         }
     }
 
@@ -97,6 +119,22 @@ public class Job {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getCompanyName() {
+        return companyName;
+    }
+
+    public void setCompanyName(String companyName) {
+        this.companyName = companyName;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
     }
 
     public BigDecimal getBudgetMin() {
@@ -131,6 +169,30 @@ public class Job {
         this.status = status;
     }
 
+    public EmploymentType getEmploymentType() {
+        return employmentType;
+    }
+
+    public void setEmploymentType(EmploymentType employmentType) {
+        this.employmentType = employmentType;
+    }
+
+    public boolean isRemote() {
+        return remote;
+    }
+
+    public void setRemote(boolean remote) {
+        this.remote = remote;
+    }
+
+    public Integer getExperienceYears() {
+        return experienceYears;
+    }
+
+    public void setExperienceYears(Integer experienceYears) {
+        this.experienceYears = experienceYears;
+    }
+
     public Long getClientId() {
         return clientId;
     }
@@ -153,6 +215,22 @@ public class Job {
 
     public void setUpdatedAt(Instant updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Instant getPublishedAt() {
+        return publishedAt;
+    }
+
+    public void setPublishedAt(Instant publishedAt) {
+        this.publishedAt = publishedAt;
+    }
+
+    public Instant getExpiresAt() {
+        return expiresAt;
+    }
+
+    public void setExpiresAt(Instant expiresAt) {
+        this.expiresAt = expiresAt;
     }
 
     public Instant getClosedAt() {

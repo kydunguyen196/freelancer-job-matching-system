@@ -35,6 +35,10 @@ app:
     secret: ${APP_JWT_SECRET:change-this-secret-key-to-at-least-32-characters-long-for-dev}
     access-token-expiration-ms: ${APP_JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
     refresh-token-expiration-ms: ${APP_JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+  services:
+    notification-base-url: ${APP_SERVICES_NOTIFICATION_BASE_URL:http://localhost:8086}
+  internal:
+    api-key: ${APP_INTERNAL_API_KEY:change-this-contract-internal-api-key}
 
 springdoc:
   api-docs:
