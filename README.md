@@ -47,6 +47,23 @@ Microservices backend for a freelance marketplace.
 - Multi-stage Dockerfile for every service.
 - Full backend `docker-compose.yml` runs all services.
 
+### Current Feature Coverage
+
+- Candidate:
+  - advanced job search with DB fallback or OpenSearch
+  - save job / unsave job
+  - follow company / unfollow company
+  - upload and replace CV per proposal
+- Recruiter:
+  - draft/open/closed/expired job lifecycle
+  - proposal review, reject, accept, and interview scheduling
+  - recruiter dashboards and proposal metrics
+- Integrations:
+  - SendGrid email with retry and async dispatch
+  - Google Calendar interview event creation
+  - CV storage with `mock`, `minio`, or `s3`
+  - signed direct CV download for S3-compatible providers
+
 ### API Pagination
 
 Both paginated endpoints return list body + paging headers:
@@ -135,9 +152,15 @@ Recommended verification flow:
 5. Re-upload another CV for the same proposal and confirm metadata is replaced.
 6. Try an invalid file type or oversized file and confirm the API rejects it with `400`.
 
+If `STORAGE_PROVIDER=minio` or `s3`, metadata may include a provider-backed signed URL:
+
+- `downloadUrl`
+- `downloadUrlExpiresAt`
+- `directDownload=true`
+
 ### Advanced Job Search Local Test
 
-Phase 1 keeps the public `GET /jobs` API unchanged and routes search internally through DB or OpenSearch depending on env.
+Phase 2 keeps the public `GET /jobs` API unchanged and routes search internally through DB or OpenSearch depending on env.
 
 DB fallback mode:
 
@@ -165,8 +188,17 @@ Recommended verification flow:
 1. Start `job-service` with DB fallback first and verify `GET /jobs` still works with existing query params.
 2. Switch to OpenSearch mode and create or publish a few jobs through the existing job APIs.
 3. Trigger `POST /jobs/internal/search/reindex` with `X-Internal-Api-Key` to backfill old data if needed.
-4. Call `GET /jobs?keyword=backend&location=ho%20chi%20minh&sortBy=salary_high` and confirm the response contract is unchanged.
-5. Stop OpenSearch or set an invalid `OPENSEARCH_URL`, then call `GET /jobs` again and confirm the service still returns DB-backed results.
+4. Trigger `POST /jobs/internal/search/reindex/companies` to backfill company documents.
+5. Call `GET /jobs/search/suggestions?q=back&limit=5` and verify title/company suggestions are returned.
+6. Call `GET /jobs/companies/search?q=acme&limit=5` and verify company search works.
+7. Call `GET /jobs?keyword=backend&location=ho%20chi%20minh&sortBy=salary_high` and confirm the response contract is unchanged.
+8. Stop OpenSearch or set an invalid `OPENSEARCH_URL`, then call the same APIs again and confirm DB fallback still returns results.
+
+Current search phase 2 additions:
+
+- `GET /jobs/search/suggestions`
+- `GET /jobs/companies/search`
+- `POST /jobs/internal/search/reindex/companies`
 
 ### Google Calendar Local Test
 
@@ -197,13 +229,45 @@ To test failure handling without breaking the business flow:
 3. Call the same interview scheduling API again.
 4. Confirm the proposal is still moved to `INTERVIEW_SCHEDULED`, `googleEventId` stays empty, and `calendarWarning` is returned.
 
+### SendGrid Email Local Test
+
+Set the notification-service email env vars before `bootRun`:
+
+```powershell
+$env:ENABLE_EMAIL="true"
+$env:SENDGRID_API_KEY="your-sendgrid-api-key"
+$env:MAIL_FROM_EMAIL="no-reply@example.com"
+$env:MAIL_FROM_NAME="SkillBridge"
+```
+
+Recommended verification flow:
+
+1. Reject a proposal and confirm the business flow succeeds.
+2. Accept a proposal and confirm the business flow succeeds.
+3. Schedule an interview and confirm the business flow succeeds.
+4. Check notification-service logs for async delivery attempts and retries.
+5. Temporarily set an invalid API key and confirm the business flow still succeeds while email delivery logs warnings.
+
 ### Run Full Backend With Docker
+
+Copy `.env.example` to `.env` first if you want to override defaults:
+
+```powershell
+Copy-Item .env.example .env
+```
 
 ```powershell
 docker compose up --build
 ```
 
 Gateway entrypoint: `http://localhost:8080`
+
+Useful service endpoints in the default compose stack:
+
+- OpenSearch: `http://localhost:9200`
+- MinIO API: `http://localhost:9000`
+- MinIO console: `http://localhost:9001`
+- RabbitMQ UI: `http://localhost:15672`
 
 ### Swagger URLs
 

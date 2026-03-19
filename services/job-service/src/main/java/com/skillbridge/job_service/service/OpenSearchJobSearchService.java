@@ -4,8 +4,11 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.skillbridge.job_service.config.SearchProperties;
 import com.skillbridge.job_service.domain.Job;
 import com.skillbridge.job_service.dto.PagedResult;
+import com.skillbridge.job_service.repository.JobRepository;
 
 @Service
 public class OpenSearchJobSearchService implements JobSearchService {
@@ -27,11 +31,14 @@ public class OpenSearchJobSearchService implements JobSearchService {
     private static final Logger log = LoggerFactory.getLogger(OpenSearchJobSearchService.class);
 
     private final SearchProperties searchProperties;
+    private final JobRepository jobRepository;
     private final RestClient restClient;
     private volatile boolean jobIndexEnsured;
+    private volatile boolean companyIndexEnsured;
 
-    public OpenSearchJobSearchService(SearchProperties searchProperties) {
+    public OpenSearchJobSearchService(SearchProperties searchProperties, JobRepository jobRepository) {
         this.searchProperties = searchProperties;
+        this.jobRepository = jobRepository;
         this.restClient = createRestClient(searchProperties);
     }
 
@@ -66,6 +73,81 @@ public class OpenSearchJobSearchService implements JobSearchService {
     }
 
     @Override
+    public List<JobSearchSuggestionItem> suggest(String query, int limit) {
+        String normalizedQuery = normalizeQuery(query);
+        if (normalizedQuery == null || limit < 1) {
+            return List.of();
+        }
+
+        ensureJobIndex();
+        JsonNode response = restClient.post()
+                .uri("/{index}/_search", searchProperties.getOpensearch().getIndexJobs())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(buildSuggestionRequest(normalizedQuery, limit))
+                .retrieve()
+                .body(JsonNode.class);
+
+        if (response == null) {
+            throw new IllegalStateException("OpenSearch suggest response was empty");
+        }
+
+        LinkedHashSet<JobSearchSuggestionItem> suggestions = new LinkedHashSet<>();
+        JsonNode hitsNode = response.path("hits").path("hits");
+        if (hitsNode.isArray()) {
+            for (JsonNode hit : hitsNode) {
+                JsonNode source = hit.path("_source");
+                if (source.isMissingNode() || source.isNull()) {
+                    continue;
+                }
+                addSuggestion(suggestions, readText(source, "title"), "TITLE", normalizedQuery, limit);
+                addSuggestion(suggestions, readNullableText(source, "companyName"), "COMPANY", normalizedQuery, limit);
+                JsonNode tagsNode = source.path("tags");
+                if (tagsNode.isArray()) {
+                    for (JsonNode tag : tagsNode) {
+                        addSuggestion(suggestions, tag.asText(null), "TAG", normalizedQuery, limit);
+                    }
+                }
+                if (suggestions.size() >= limit) {
+                    break;
+                }
+            }
+        }
+        return List.copyOf(suggestions);
+    }
+
+    @Override
+    public List<CompanySearchResultItem> searchCompanies(String query, int limit) {
+        String normalizedQuery = normalizeQuery(query);
+        if (normalizedQuery == null || limit < 1) {
+            return List.of();
+        }
+
+        ensureCompanyIndex();
+        JsonNode response = restClient.post()
+                .uri("/{index}/_search", searchProperties.getOpensearch().getIndexCompanies())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(buildCompanySearchRequest(normalizedQuery, limit))
+                .retrieve()
+                .body(JsonNode.class);
+
+        if (response == null) {
+            throw new IllegalStateException("OpenSearch company search response was empty");
+        }
+
+        List<CompanySearchResultItem> companies = new ArrayList<>();
+        JsonNode hitsNode = response.path("hits").path("hits");
+        if (hitsNode.isArray()) {
+            for (JsonNode hit : hitsNode) {
+                JsonNode source = hit.path("_source");
+                if (!source.isMissingNode() && !source.isNull()) {
+                    companies.add(toCompanySearchResult(source));
+                }
+            }
+        }
+        return List.copyOf(companies);
+    }
+
+    @Override
     public boolean indexJob(Job job) {
         if (!supportsIndexing()) {
             return false;
@@ -81,6 +163,30 @@ public class OpenSearchJobSearchService implements JobSearchService {
             return true;
         } catch (RestClientException | IllegalStateException ex) {
             log.warn("Failed to index jobId={} into OpenSearch: {}", job.getId(), ex.getMessage());
+            return false;
+        }
+    }
+
+    @Override
+    public boolean indexCompany(Long clientId) {
+        if (!supportsIndexing() || clientId == null) {
+            return false;
+        }
+        try {
+            List<Job> jobs = jobRepository.findByClientIdOrderByUpdatedAtDesc(clientId);
+            if (jobs.isEmpty()) {
+                return deleteCompany(clientId);
+            }
+            ensureCompanyIndex();
+            restClient.put()
+                    .uri("/{index}/_doc/{id}", searchProperties.getOpensearch().getIndexCompanies(), clientId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(toCompanyIndexDocument(clientId, jobs))
+                    .retrieve()
+                    .toBodilessEntity();
+            return true;
+        } catch (RestClientException | IllegalStateException ex) {
+            log.warn("Failed to index company clientId={} into OpenSearch: {}", clientId, ex.getMessage());
             return false;
         }
     }
@@ -106,13 +212,34 @@ public class OpenSearchJobSearchService implements JobSearchService {
     }
 
     @Override
+    public boolean deleteCompany(Long clientId) {
+        if (!supportsIndexing() || clientId == null) {
+            return false;
+        }
+        try {
+            ensureCompanyIndex();
+            restClient.delete()
+                    .uri("/{index}/_doc/{id}", searchProperties.getOpensearch().getIndexCompanies(), clientId)
+                    .retrieve()
+                    .toBodilessEntity();
+            return true;
+        } catch (HttpClientErrorException.NotFound ex) {
+            return false;
+        } catch (RestClientException | IllegalStateException ex) {
+            log.warn("Failed to delete company clientId={} from OpenSearch: {}", clientId, ex.getMessage());
+            return false;
+        }
+    }
+
+    @Override
     public boolean supportsIndexing() {
         SearchProperties.OpenSearchProperties properties = searchProperties.getOpensearch();
         return searchProperties.isEnabled()
                 && "opensearch".equalsIgnoreCase(searchProperties.getProvider())
                 && restClient != null
                 && notBlank(properties.getUrl())
-                && notBlank(properties.getIndexJobs());
+                && notBlank(properties.getIndexJobs())
+                && notBlank(properties.getIndexCompanies());
     }
 
     @Override
@@ -145,40 +272,57 @@ public class OpenSearchJobSearchService implements JobSearchService {
         if (jobIndexEnsured) {
             return;
         }
-        if (!supportsIndexing()) {
-            throw new IllegalStateException("OpenSearch indexing is not configured");
-        }
         synchronized (this) {
             if (jobIndexEnsured) {
                 return;
             }
-            if (!jobIndexExists()) {
-                createJobIndex();
-            }
+            ensureIndex(searchProperties.getOpensearch().getIndexJobs(), buildJobIndexMapping());
             jobIndexEnsured = true;
         }
     }
 
-    private boolean jobIndexExists() {
+    private void ensureCompanyIndex() {
+        if (companyIndexEnsured) {
+            return;
+        }
+        synchronized (this) {
+            if (companyIndexEnsured) {
+                return;
+            }
+            ensureIndex(searchProperties.getOpensearch().getIndexCompanies(), buildCompanyIndexMapping());
+            companyIndexEnsured = true;
+        }
+    }
+
+    private void ensureIndex(String indexName, Map<String, Object> mapping) {
+        if (!supportsIndexing()) {
+            throw new IllegalStateException("OpenSearch indexing is not configured");
+        }
+        if (!indexExists(indexName)) {
+            createIndex(indexName, mapping);
+        }
+    }
+
+    private boolean indexExists(String indexName) {
         try {
             restClient.get()
-                    .uri("/{index}", searchProperties.getOpensearch().getIndexJobs())
+                    .uri("/{index}", indexName)
                     .retrieve()
                     .toBodilessEntity();
             return true;
         } catch (HttpClientErrorException.NotFound ex) {
             return false;
         } catch (RestClientException ex) {
-            throw new IllegalStateException("Could not check OpenSearch job index", ex);
+            throw new IllegalStateException("Could not check OpenSearch index " + indexName, ex);
         }
     }
 
-    private void createJobIndex() {
+    private void createIndex(String indexName, Map<String, Object> mapping) {
         try {
             restClient.put()
-                    .uri("/{index}", searchProperties.getOpensearch().getIndexJobs())
+                    .uri("/{index}", indexName)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(buildJobIndexMapping())
+                    .body(mapping)
                     .retrieve()
                     .toBodilessEntity();
         } catch (HttpClientErrorException.BadRequest ex) {
@@ -188,7 +332,7 @@ public class OpenSearchJobSearchService implements JobSearchService {
             }
             throw ex;
         } catch (RestClientException ex) {
-            throw new IllegalStateException("Could not create OpenSearch job index", ex);
+            throw new IllegalStateException("Could not create OpenSearch index " + indexName, ex);
         }
     }
 
@@ -215,6 +359,20 @@ public class OpenSearchJobSearchService implements JobSearchService {
         return Map.of("mappings", Map.of("properties", properties));
     }
 
+    private Map<String, Object> buildCompanyIndexMapping() {
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("clientId", Map.of("type", "long"));
+        properties.put("companyName", textWithKeyword());
+        properties.put("totalJobs", Map.of("type", "long"));
+        properties.put("openJobs", Map.of("type", "long"));
+        properties.put("latestJobCreatedAt", Map.of("type", "date"));
+        properties.put("latestJobUpdatedAt", Map.of("type", "date"));
+        properties.put("locations", Map.of("type", "keyword"));
+        properties.put("employmentTypes", Map.of("type", "keyword"));
+        properties.put("topTags", Map.of("type", "keyword"));
+        return Map.of("mappings", Map.of("properties", properties));
+    }
+
     private Map<String, Object> textWithKeyword() {
         return Map.of(
                 "type", "text",
@@ -229,12 +387,12 @@ public class OpenSearchJobSearchService implements JobSearchService {
         document.put("description", job.getDescription());
         document.put("companyName", job.getCompanyName());
         document.put("location", job.getLocation());
-        document.put("employmentType", job.getEmploymentType().name());
+        document.put("employmentType", job.getEmploymentType() == null ? null : job.getEmploymentType().name());
         document.put("remote", job.isRemote());
         document.put("budgetMin", job.getBudgetMin());
         document.put("budgetMax", job.getBudgetMax());
         document.put("experienceYears", job.getExperienceYears());
-        document.put("status", job.getStatus().name());
+        document.put("status", job.getStatus() == null ? null : job.getStatus().name());
         document.put("clientId", job.getClientId());
         document.put("createdAt", job.getCreatedAt());
         document.put("updatedAt", job.getUpdatedAt());
@@ -245,12 +403,69 @@ public class OpenSearchJobSearchService implements JobSearchService {
         return document;
     }
 
+    private Map<String, Object> toCompanyIndexDocument(Long clientId, List<Job> jobs) {
+        Job seed = jobs.get(0);
+        Map<String, Object> document = new LinkedHashMap<>();
+        document.put("clientId", clientId);
+        document.put("companyName", resolveCompanyName(seed));
+        document.put("totalJobs", jobs.size());
+        document.put("openJobs", jobs.stream().filter(job -> job.getStatus() != null && "OPEN".equals(job.getStatus().name())).count());
+        document.put("latestJobCreatedAt", jobs.stream().map(Job::getCreatedAt).filter(Objects::nonNull).max(Instant::compareTo).orElse(null));
+        document.put("latestJobUpdatedAt", jobs.stream().map(Job::getUpdatedAt).filter(Objects::nonNull).max(Instant::compareTo).orElse(null));
+        document.put("locations", distinctNonBlank(jobs.stream().map(Job::getLocation).toList(), 8));
+        document.put("employmentTypes", distinctNonBlank(
+                jobs.stream().map(job -> job.getEmploymentType() == null ? null : job.getEmploymentType().name()).toList(),
+                8
+        ));
+        document.put("topTags", distinctNonBlank(jobs.stream().flatMap(job -> job.getTags().stream()).toList(), 12));
+        return document;
+    }
+
     private Map<String, Object> buildSearchRequest(JobSearchRequest request) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("from", request.page() * request.size());
         body.put("size", request.size());
         body.put("query", buildQuery(request));
         body.put("sort", buildSort(request.sort()));
+        return body;
+    }
+
+    private Map<String, Object> buildSuggestionRequest(String query, int limit) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("size", Math.max(limit * 3, limit));
+        body.put("_source", List.of("title", "companyName", "tags"));
+        body.put("query", Map.of(
+                "bool", Map.of(
+                        "filter", List.of(Map.of("term", Map.of("status", "OPEN"))),
+                        "should", List.of(
+                                Map.of("match_phrase_prefix", Map.of("title", Map.of("query", query, "boost", 5))),
+                                Map.of("match_phrase_prefix", Map.of("companyName", Map.of("query", query, "boost", 3))),
+                                Map.of("prefix", Map.of("tags", query))
+                        ),
+                        "minimum_should_match", 1
+                )
+        ));
+        body.put("sort", List.of(Map.of("_score", Map.of("order", "desc")), Map.of("updatedAt", Map.of("order", "desc"))));
+        return body;
+    }
+
+    private Map<String, Object> buildCompanySearchRequest(String query, int limit) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("size", limit);
+        body.put("query", Map.of(
+                "bool", Map.of(
+                        "should", List.of(
+                                Map.of("match_phrase_prefix", Map.of("companyName", Map.of("query", query, "boost", 5))),
+                                Map.of("match", Map.of("locations", Map.of("query", query, "boost", 2))),
+                                Map.of("match", Map.of("topTags", Map.of("query", query)))
+                        ),
+                        "minimum_should_match", 1
+                )
+        ));
+        body.put("sort", List.of(
+                Map.of("openJobs", Map.of("order", "desc")),
+                Map.of("latestJobUpdatedAt", Map.of("order", "desc"))
+        ));
         return body;
     }
 
@@ -336,7 +551,7 @@ public class OpenSearchJobSearchService implements JobSearchService {
                 readText(source, "description"),
                 readBigDecimal(source, "budgetMin"),
                 readBigDecimal(source, "budgetMax"),
-                readTags(source.path("tags")),
+                readTextArray(source.path("tags")),
                 readText(source, "status"),
                 readLong(source, "clientId"),
                 readNullableText(source, "companyName"),
@@ -352,6 +567,36 @@ public class OpenSearchJobSearchService implements JobSearchService {
                 readInstant(source, "expiresAt"),
                 readInstant(source, "closedAt")
         );
+    }
+
+    private CompanySearchResultItem toCompanySearchResult(JsonNode source) {
+        return new CompanySearchResultItem(
+                readLong(source, "clientId"),
+                readText(source, "companyName"),
+                source.path("totalJobs").asLong(0),
+                source.path("openJobs").asLong(0),
+                readInstant(source, "latestJobCreatedAt"),
+                readInstant(source, "latestJobUpdatedAt"),
+                readTextArray(source.path("locations")),
+                readTextArray(source.path("employmentTypes")),
+                readTextArray(source.path("topTags"))
+        );
+    }
+
+    private void addSuggestion(
+            LinkedHashSet<JobSearchSuggestionItem> suggestions,
+            String value,
+            String type,
+            String normalizedQuery,
+            int limit
+    ) {
+        if (suggestions.size() >= limit || value == null || value.isBlank()) {
+            return;
+        }
+        if (!value.toLowerCase(Locale.ROOT).contains(normalizedQuery)) {
+            return;
+        }
+        suggestions.add(new JobSearchSuggestionItem(value, type));
     }
 
     private long extractTotalHits(JsonNode totalNode) {
@@ -386,15 +631,17 @@ public class OpenSearchJobSearchService implements JobSearchService {
         return new BigDecimal(value.asText());
     }
 
-    private List<String> readTags(JsonNode tagsNode) {
-        if (tagsNode == null || !tagsNode.isArray()) {
+    private List<String> readTextArray(JsonNode arrayNode) {
+        if (arrayNode == null || !arrayNode.isArray()) {
             return List.of();
         }
-        List<String> tags = new ArrayList<>();
-        for (JsonNode tag : tagsNode) {
-            tags.add(tag.asText());
+        List<String> values = new ArrayList<>();
+        for (JsonNode node : arrayNode) {
+            if (!node.isNull() && !node.asText().isBlank()) {
+                values.add(node.asText());
+            }
         }
-        return List.copyOf(tags);
+        return List.copyOf(values);
     }
 
     private Instant readInstant(JsonNode node, String field) {
@@ -403,6 +650,31 @@ public class OpenSearchJobSearchService implements JobSearchService {
             return null;
         }
         return Instant.parse(value.asText());
+    }
+
+    private List<String> distinctNonBlank(List<String> values, int limit) {
+        return values.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(value -> !value.isBlank())
+                .distinct()
+                .limit(limit)
+                .toList();
+    }
+
+    private String resolveCompanyName(Job job) {
+        if (job.getCompanyName() != null && !job.getCompanyName().isBlank()) {
+            return job.getCompanyName();
+        }
+        return "Client #" + job.getClientId();
+    }
+
+    private String normalizeQuery(String query) {
+        if (query == null) {
+            return null;
+        }
+        String normalized = query.trim().toLowerCase(Locale.ROOT);
+        return normalized.isBlank() ? null : normalized;
     }
 
     private boolean notBlank(String value) {

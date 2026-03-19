@@ -1,7 +1,12 @@
 package com.skillbridge.job_service.service;
 
 import java.util.List;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -78,12 +83,64 @@ public class DbJobSearchService implements JobSearchService {
     }
 
     @Override
+    public List<JobSearchSuggestionItem> suggest(String query, int limit) {
+        String normalizedQuery = normalize(query);
+        if (normalizedQuery == null || limit < 1) {
+            return List.of();
+        }
+
+        Page<Job> jobs = jobRepository.findAll(PageRequest.of(0, Math.max(limit * 5, 25), Sort.by(Sort.Order.desc("updatedAt"))));
+        LinkedHashSet<JobSearchSuggestionItem> suggestions = new LinkedHashSet<>();
+
+        for (Job job : jobs.getContent()) {
+            addSuggestion(suggestions, job.getTitle(), "TITLE", normalizedQuery, limit);
+            addSuggestion(suggestions, resolveCompanyName(job), "COMPANY", normalizedQuery, limit);
+            for (String tag : job.getTags()) {
+                addSuggestion(suggestions, tag, "TAG", normalizedQuery, limit);
+            }
+            if (suggestions.size() >= limit) {
+                break;
+            }
+        }
+
+        return List.copyOf(suggestions);
+    }
+
+    @Override
+    public List<CompanySearchResultItem> searchCompanies(String query, int limit) {
+        String normalizedQuery = normalize(query);
+        if (normalizedQuery == null || limit < 1) {
+            return List.of();
+        }
+
+        Page<Job> jobs = jobRepository.findAll(PageRequest.of(0, Math.max(limit * 10, 50), Sort.by(Sort.Order.desc("updatedAt"))));
+        Map<Long, List<Job>> jobsByClient = jobs.getContent().stream()
+                .filter(job -> resolveCompanyName(job).toLowerCase(Locale.ROOT).contains(normalizedQuery))
+                .collect(Collectors.groupingBy(Job::getClientId, LinkedHashMap::new, Collectors.toList()));
+
+        return jobsByClient.entrySet().stream()
+                .map(entry -> toCompanyResult(entry.getKey(), entry.getValue()))
+                .limit(limit)
+                .toList();
+    }
+
+    @Override
     public boolean indexJob(Job job) {
         return false;
     }
 
     @Override
+    public boolean indexCompany(Long clientId) {
+        return false;
+    }
+
+    @Override
     public boolean deleteJob(Long jobId) {
+        return false;
+    }
+
+    @Override
+    public boolean deleteCompany(Long clientId) {
         return false;
     }
 
@@ -120,5 +177,68 @@ public class DbJobSearchService implements JobSearchService {
             return Sort.by(Sort.Order.desc("budgetMax"), Sort.Order.desc("createdAt"));
         }
         return Sort.by(Sort.Order.asc("budgetMin"), Sort.Order.desc("createdAt"));
+    }
+
+    private void addSuggestion(
+            LinkedHashSet<JobSearchSuggestionItem> suggestions,
+            String value,
+            String type,
+            String normalizedQuery,
+            int limit
+    ) {
+        if (suggestions.size() >= limit) {
+            return;
+        }
+        String normalizedValue = normalize(value);
+        if (normalizedValue == null || !normalizedValue.contains(normalizedQuery)) {
+            return;
+        }
+        suggestions.add(new JobSearchSuggestionItem(value.trim(), type));
+    }
+
+    private CompanySearchResultItem toCompanyResult(Long clientId, List<Job> jobs) {
+        List<Job> safeJobs = jobs.stream()
+                .filter(Objects::nonNull)
+                .toList();
+
+        long openJobs = safeJobs.stream().filter(job -> job.getStatus() != null && "OPEN".equals(job.getStatus().name())).count();
+        return new CompanySearchResultItem(
+                clientId,
+                resolveCompanyName(safeJobs.get(0)),
+                safeJobs.size(),
+                openJobs,
+                safeJobs.stream().map(Job::getCreatedAt).filter(Objects::nonNull).max(java.time.Instant::compareTo).orElse(null),
+                safeJobs.stream().map(Job::getUpdatedAt).filter(Objects::nonNull).max(java.time.Instant::compareTo).orElse(null),
+                distinctNonBlank(safeJobs.stream().map(Job::getLocation).toList()),
+                distinctNonBlank(safeJobs.stream().map(job -> job.getEmploymentType() == null ? null : job.getEmploymentType().name()).toList()),
+                distinctNonBlank(safeJobs.stream().flatMap(job -> job.getTags().stream()).toList())
+        );
+    }
+
+    private List<String> distinctNonBlank(List<String> values) {
+        return values.stream()
+                .map(this::normalize)
+                .filter(Objects::nonNull)
+                .distinct()
+                .limit(8)
+                .toList();
+    }
+
+    private String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return normalized.isBlank() ? null : normalized;
+    }
+
+    private String resolveCompanyName(Job job) {
+        if (job == null) {
+            return "Unknown company";
+        }
+        if (job.getCompanyName() != null && !job.getCompanyName().isBlank()) {
+            return job.getCompanyName();
+        }
+        return "Client #" + job.getClientId();
     }
 }

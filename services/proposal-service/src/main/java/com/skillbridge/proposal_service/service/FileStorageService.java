@@ -1,5 +1,7 @@
 package com.skillbridge.proposal_service.service;
 
+import java.time.Instant;
+
 import com.skillbridge.proposal_service.domain.FileStorageProvider;
 
 public interface FileStorageService {
@@ -11,6 +13,8 @@ public interface FileStorageService {
     StoredFile store(StoreFileRequest request);
 
     StoredFileContent load(FileReference fileReference);
+
+    AccessUrl createDownloadAccess(FileReference fileReference, long ttlMinutes);
 
     void delete(FileReference fileReference);
 
@@ -44,6 +48,13 @@ public interface FileStorageService {
             String originalFileName,
             String contentType,
             byte[] content
+    ) {
+    }
+
+    record AccessUrl(
+            String url,
+            Instant expiresAt,
+            boolean direct
     ) {
     }
 }

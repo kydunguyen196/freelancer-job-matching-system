@@ -52,6 +52,11 @@ public class RoutingFileStorageService implements FileStorageService {
     }
 
     @Override
+    public AccessUrl createDownloadAccess(FileReference fileReference, long ttlMinutes) {
+        return providerFor(fileReference.provider()).createDownloadAccess(fileReference, ttlMinutes);
+    }
+
+    @Override
     public void delete(FileReference fileReference) {
         providerFor(fileReference.provider()).delete(fileReference);
     }

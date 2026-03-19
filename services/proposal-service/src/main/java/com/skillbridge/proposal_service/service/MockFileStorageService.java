@@ -56,6 +56,11 @@ public class MockFileStorageService implements FileStorageService {
     }
 
     @Override
+    public AccessUrl createDownloadAccess(FileReference fileReference, long ttlMinutes) {
+        return null;
+    }
+
+    @Override
     public void delete(FileReference fileReference) {
         Path target = resolveObjectPath(fileReference.objectKey());
         try {

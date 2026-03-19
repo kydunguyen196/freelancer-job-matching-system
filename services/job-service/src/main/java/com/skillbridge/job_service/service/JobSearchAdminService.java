@@ -1,6 +1,7 @@
 package com.skillbridge.job_service.service;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -68,6 +69,36 @@ public class JobSearchAdminService {
                 indexed ? 1 : 0,
                 true,
                 indexed ? "Reindexed job #" + jobId : "Failed to reindex job #" + jobId
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public JobSearchReindexResponse reindexAllCompanies() {
+        if (!jobSearchService.supportsIndexing()) {
+            return new JobSearchReindexResponse(
+                    jobSearchService.providerName(),
+                    0,
+                    false,
+                    "Advanced search indexing is disabled or unavailable"
+            );
+        }
+
+        int indexedCount = 0;
+        List<Long> clientIds = jobRepository.findAll().stream()
+                .map(Job::getClientId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        for (Long clientId : clientIds) {
+            if (jobSearchService.indexCompany(clientId)) {
+                indexedCount++;
+            }
+        }
+        return new JobSearchReindexResponse(
+                jobSearchService.providerName(),
+                indexedCount,
+                true,
+                "Reindexed " + indexedCount + " company documents"
         );
     }
 }

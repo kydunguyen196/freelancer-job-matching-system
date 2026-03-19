@@ -13,6 +13,8 @@ public record ProposalCvFileResponse(
         String storageProvider,
         String bucketName,
         Instant uploadedAt,
-        String downloadUrl
+        String downloadUrl,
+        Instant downloadUrlExpiresAt,
+        boolean directDownload
 ) {
 }

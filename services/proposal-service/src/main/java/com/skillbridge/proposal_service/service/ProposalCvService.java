@@ -299,6 +299,7 @@ public class ProposalCvService {
     }
 
     private ProposalCvFileResponse toResponse(ProposalCvFile metadata) {
+        FileStorageService.AccessUrl accessUrl = resolveDownloadAccess(metadata);
         return new ProposalCvFileResponse(
                 metadata.getId(),
                 metadata.getProposalId(),
@@ -310,8 +311,19 @@ public class ProposalCvService {
                 metadata.getStorageProvider().code(),
                 metadata.getBucketName(),
                 metadata.getUploadedAt(),
-                "/proposals/%d/cv/download".formatted(metadata.getProposalId())
+                accessUrl == null ? "/proposals/%d/cv/download".formatted(metadata.getProposalId()) : accessUrl.url(),
+                accessUrl == null ? null : accessUrl.expiresAt(),
+                accessUrl != null && accessUrl.direct()
         );
+    }
+
+    private FileStorageService.AccessUrl resolveDownloadAccess(ProposalCvFile metadata) {
+        try {
+            return fileStorageService.createDownloadAccess(toReference(metadata), fileStorageProperties.getSignedUrlTtlMinutes());
+        } catch (FileStorageException ex) {
+            log.warn("Failed to create download access for proposalId={}: {}", metadata.getProposalId(), ex.getMessage(), ex);
+            return null;
+        }
     }
 
     private record ValidatedFile(

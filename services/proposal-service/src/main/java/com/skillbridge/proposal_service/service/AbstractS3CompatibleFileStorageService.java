@@ -1,5 +1,8 @@
 package com.skillbridge.proposal_service.service;
 
+import java.time.Duration;
+import java.time.Instant;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -12,6 +15,9 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
 abstract class AbstractS3CompatibleFileStorageService implements FileStorageService {
 
@@ -20,11 +26,18 @@ abstract class AbstractS3CompatibleFileStorageService implements FileStorageServ
     private final FileStorageProvider provider;
     private final String bucketName;
     private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
 
-    protected AbstractS3CompatibleFileStorageService(FileStorageProvider provider, String bucketName, S3Client s3Client) {
+    protected AbstractS3CompatibleFileStorageService(
+            FileStorageProvider provider,
+            String bucketName,
+            S3Client s3Client,
+            S3Presigner s3Presigner
+    ) {
         this.provider = provider;
         this.bucketName = bucketName;
         this.s3Client = s3Client;
+        this.s3Presigner = s3Presigner;
     }
 
     @Override
@@ -75,6 +88,35 @@ abstract class AbstractS3CompatibleFileStorageService implements FileStorageServ
     }
 
     @Override
+    public AccessUrl createDownloadAccess(FileReference fileReference, long ttlMinutes) {
+        ensureAvailable();
+        if (s3Presigner == null || ttlMinutes < 1) {
+            return null;
+        }
+        try {
+            PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(
+                    GetObjectPresignRequest.builder()
+                            .signatureDuration(Duration.ofMinutes(ttlMinutes))
+                            .getObjectRequest(GetObjectRequest.builder()
+                                    .bucket(resolveBucket(fileReference))
+                                    .key(fileReference.objectKey())
+                                    .responseContentType(fileReference.contentType())
+                                    .responseContentDisposition("attachment; filename=\"" + sanitizeFileName(fileReference.originalFileName()) + "\"")
+                                    .build())
+                            .build()
+            );
+            return new AccessUrl(
+                    presignedRequest.url().toString(),
+                    Instant.now().plus(Duration.ofMinutes(ttlMinutes)),
+                    true
+            );
+        } catch (RuntimeException ex) {
+            log.warn("Failed to create direct download URL for object key={} provider={}: {}", fileReference.objectKey(), provider.code(), ex.getMessage());
+            return null;
+        }
+    }
+
+    @Override
     public void delete(FileReference fileReference) {
         if (!isAvailable()) {
             return;
@@ -100,5 +142,9 @@ abstract class AbstractS3CompatibleFileStorageService implements FileStorageServ
             return fileReference.bucketName();
         }
         return bucketName;
+    }
+
+    private String sanitizeFileName(String fileName) {
+        return fileName.replace("\"", "_").replace("\r", "_").replace("\n", "_");
     }
 }

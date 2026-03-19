@@ -72,6 +72,8 @@ class ProposalCvServiceTest {
         assertThat(response.originalFileName()).isEqualTo("candidate-cv.pdf");
         assertThat(response.storageProvider()).isEqualTo("mock");
         assertThat(response.downloadUrl()).isEqualTo("/proposals/55/cv/download");
+        assertThat(response.downloadUrlExpiresAt()).isNull();
+        assertThat(response.directDownload()).isFalse();
         assertThat(Files.exists(tempDir.resolve(response.objectKey()))).isTrue();
     }
 
@@ -176,9 +178,67 @@ class ProposalCvServiceTest {
         ProposalCvService.DownloadedCvFile downloadedCv = proposalCvService.downloadCv(99L, recruiter);
 
         assertThat(response.originalFileName()).isEqualTo("recruiter-view.pdf");
+        assertThat(response.directDownload()).isFalse();
         assertThat(downloadedCv.fileName()).isEqualTo("recruiter-view.pdf");
         assertThat(downloadedCv.contentType()).isEqualTo("application/pdf");
         assertThat(new String(downloadedCv.content(), StandardCharsets.UTF_8)).isEqualTo("downloadable-content");
+    }
+
+    @Test
+    void getCvMetadataShouldUseDirectAccessWhenProviderSupportsIt() {
+        Proposal proposal = proposal(111L, 7L, 10L);
+        ProposalCvFile metadata = new ProposalCvFile();
+        metadata.setId(9L);
+        metadata.setProposalId(111L);
+        metadata.setOwnerUserId(7L);
+        metadata.setObjectKey("proposals/111/cv/direct.pdf");
+        metadata.setOriginalFileName("direct.pdf");
+        metadata.setContentType("application/pdf");
+        metadata.setSizeBytes(20);
+        metadata.setStorageProvider(FileStorageProvider.MOCK);
+        metadata.setBucketName("mock-local");
+        metadata.setUploadedAt(java.time.Instant.parse("2026-03-19T10:00:00Z"));
+
+        FileStorageService directStorage = new FileStorageService() {
+            @Override
+            public FileStorageProvider provider() {
+                return FileStorageProvider.MOCK;
+            }
+
+            @Override
+            public boolean isAvailable() {
+                return true;
+            }
+
+            @Override
+            public StoredFile store(StoreFileRequest request) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoredFileContent load(FileReference fileReference) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public AccessUrl createDownloadAccess(FileReference fileReference, long ttlMinutes) {
+                return new AccessUrl("https://storage.example/direct.pdf", java.time.Instant.parse("2026-03-19T11:00:00Z"), true);
+            }
+
+            @Override
+            public void delete(FileReference fileReference) {
+            }
+        };
+
+        ProposalCvService proposalCvService = createService(true, directStorage);
+        when(proposalRepository.findById(111L)).thenReturn(Optional.of(proposal));
+        when(proposalCvFileRepository.findByProposalId(111L)).thenReturn(Optional.of(metadata));
+
+        ProposalCvFileResponse response = proposalCvService.getCvMetadata(111L, new JwtUserPrincipal(7L, "candidate@example.com", "FREELANCER"));
+
+        assertThat(response.downloadUrl()).isEqualTo("https://storage.example/direct.pdf");
+        assertThat(response.downloadUrlExpiresAt()).isEqualTo(java.time.Instant.parse("2026-03-19T11:00:00Z"));
+        assertThat(response.directDownload()).isTrue();
     }
 
     @Test

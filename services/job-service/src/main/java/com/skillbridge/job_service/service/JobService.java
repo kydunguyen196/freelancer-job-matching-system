@@ -29,9 +29,11 @@ import com.skillbridge.job_service.domain.Job;
 import com.skillbridge.job_service.domain.JobStatus;
 import com.skillbridge.job_service.domain.SavedJob;
 import com.skillbridge.job_service.dto.CreateJobRequest;
+import com.skillbridge.job_service.dto.CompanySearchResponse;
 import com.skillbridge.job_service.dto.FollowedCompanyResponse;
 import com.skillbridge.job_service.dto.JobDashboardResponse;
 import com.skillbridge.job_service.dto.JobResponse;
+import com.skillbridge.job_service.dto.JobSearchSuggestionResponse;
 import com.skillbridge.job_service.dto.PagedResult;
 import com.skillbridge.job_service.repository.FollowedCompanyRepository;
 import com.skillbridge.job_service.repository.JobRepository;
@@ -316,6 +318,32 @@ public class JobService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public List<JobSearchSuggestionResponse> suggestJobs(String query, int limit) {
+        validateSuggestionLimit(limit);
+        return jobSearchService.suggest(normalizeText(query), limit).stream()
+                .map(item -> new JobSearchSuggestionResponse(item.value(), item.type()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<CompanySearchResponse> searchCompanies(String query, int limit) {
+        validateSuggestionLimit(limit);
+        return jobSearchService.searchCompanies(normalizeText(query), limit).stream()
+                .map(item -> new CompanySearchResponse(
+                        item.clientId(),
+                        item.companyName(),
+                        item.totalJobs(),
+                        item.openJobs(),
+                        item.latestJobCreatedAt(),
+                        item.latestJobUpdatedAt(),
+                        item.locations(),
+                        item.employmentTypes(),
+                        item.topTags()
+                ))
+                .toList();
+    }
+
     private void ensureClientRole(JwtUserPrincipal principal) {
         ensureRole(principal, "CLIENT", "Only CLIENT can perform this action");
     }
@@ -421,6 +449,12 @@ public class JobService {
         }
         if (size < 1 || size > 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "size must be between 1 and 100");
+        }
+    }
+
+    private void validateSuggestionLimit(int limit) {
+        if (limit < 1 || limit > 20) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "limit must be between 1 and 20");
         }
     }
 
@@ -559,7 +593,9 @@ public class JobService {
     }
 
     private void safeIndexJob(Job job) {
-        if (!jobSearchService.indexJob(job)) {
+        boolean indexedJob = jobSearchService.indexJob(job);
+        boolean indexedCompany = job.getClientId() != null && jobSearchService.indexCompany(job.getClientId());
+        if (!indexedJob && !indexedCompany) {
             log.debug("Search indexing skipped or failed for jobId={}", job.getId());
         }
     }

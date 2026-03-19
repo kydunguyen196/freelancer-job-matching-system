@@ -58,6 +58,38 @@ class RoutingJobSearchServiceTest {
         verifyNoInteractions(openSearchJobSearchService);
     }
 
+    @Test
+    void suggestShouldFallBackToDbWhenOpenSearchFails() {
+        SearchProperties properties = properties(true, "opensearch");
+        RoutingJobSearchService routingJobSearchService = new RoutingJobSearchService(properties, dbJobSearchService, openSearchJobSearchService);
+        List<JobSearchSuggestionItem> dbResult = List.of(new JobSearchSuggestionItem("backend engineer", "TITLE"));
+
+        when(openSearchJobSearchService.supportsIndexing()).thenReturn(true);
+        when(openSearchJobSearchService.suggest("backend", 5)).thenThrow(new IllegalStateException("cluster unavailable"));
+        when(dbJobSearchService.suggest("backend", 5)).thenReturn(dbResult);
+
+        List<JobSearchSuggestionItem> result = routingJobSearchService.suggest("backend", 5);
+
+        assertThat(result).isEqualTo(dbResult);
+        verify(openSearchJobSearchService).suggest("backend", 5);
+        verify(dbJobSearchService).suggest("backend", 5);
+    }
+
+    @Test
+    void companySearchShouldUseDbWhenAdvancedSearchDisabled() {
+        SearchProperties properties = properties(false, "opensearch");
+        RoutingJobSearchService routingJobSearchService = new RoutingJobSearchService(properties, dbJobSearchService, openSearchJobSearchService);
+        List<CompanySearchResultItem> dbResult = List.of(new CompanySearchResultItem(1L, "Acme", 4, 2, null, null, List.of(), List.of(), List.of()));
+
+        when(dbJobSearchService.searchCompanies("acme", 10)).thenReturn(dbResult);
+
+        List<CompanySearchResultItem> result = routingJobSearchService.searchCompanies("acme", 10);
+
+        assertThat(result).isEqualTo(dbResult);
+        verify(dbJobSearchService).searchCompanies("acme", 10);
+        verifyNoInteractions(openSearchJobSearchService);
+    }
+
     private SearchProperties properties(boolean enabled, String provider) {
         SearchProperties properties = new SearchProperties();
         properties.setEnabled(enabled);

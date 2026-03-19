@@ -63,6 +63,7 @@ app:
     enabled: ${ENABLE_FILE_STORAGE:false}
     provider: ${STORAGE_PROVIDER:mock}
     max-cv-file-size-mb: ${MAX_CV_FILE_SIZE_MB:10}
+    signed-url-ttl-minutes: ${CV_SIGNED_URL_TTL_MINUTES:15}
     allowed-cv-content-types: ${ALLOWED_CV_CONTENT_TYPES:application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document}
     mock:
       base-dir: ${MOCK_STORAGE_BASE_DIR:${java.io.tmpdir}/skillbridge/mock-storage}

@@ -10,6 +10,7 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 public class MinioFileStorageService extends AbstractS3CompatibleFileStorageService {
 
@@ -17,7 +18,8 @@ public class MinioFileStorageService extends AbstractS3CompatibleFileStorageServ
         super(
                 FileStorageProvider.MINIO,
                 properties.getMinio().getBucket(),
-                createClient(properties)
+                createClient(properties),
+                createPresigner(properties)
         );
     }
 
@@ -27,6 +29,21 @@ public class MinioFileStorageService extends AbstractS3CompatibleFileStorageServ
             return null;
         }
         return S3Client.builder()
+                .region(Region.of(minio.getRegion()))
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(minio.getAccessKey(), minio.getSecretKey())
+                ))
+                .endpointOverride(URI.create(normalizeEndpoint(minio)))
+                .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build())
+                .build();
+    }
+
+    private static S3Presigner createPresigner(FileStorageProperties properties) {
+        FileStorageProperties.MinioProperties minio = properties.getMinio();
+        if (isBlank(minio.getEndpoint()) || isBlank(minio.getBucket()) || isBlank(minio.getAccessKey()) || isBlank(minio.getSecretKey())) {
+            return null;
+        }
+        return S3Presigner.builder()
                 .region(Region.of(minio.getRegion()))
                 .credentialsProvider(StaticCredentialsProvider.create(
                         AwsBasicCredentials.create(minio.getAccessKey(), minio.getSecretKey())

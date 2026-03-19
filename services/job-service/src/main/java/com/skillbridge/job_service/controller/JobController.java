@@ -25,10 +25,12 @@ import org.springframework.web.server.ResponseStatusException;
 import com.skillbridge.job_service.domain.EmploymentType;
 import com.skillbridge.job_service.domain.JobStatus;
 import com.skillbridge.job_service.dto.CreateJobRequest;
+import com.skillbridge.job_service.dto.CompanySearchResponse;
 import com.skillbridge.job_service.dto.FollowedCompanyResponse;
 import com.skillbridge.job_service.dto.JobDashboardResponse;
 import com.skillbridge.job_service.dto.JobResponse;
 import com.skillbridge.job_service.dto.JobSearchReindexResponse;
+import com.skillbridge.job_service.dto.JobSearchSuggestionResponse;
 import com.skillbridge.job_service.dto.PagedResult;
 import com.skillbridge.job_service.dto.UpdateJobStatusRequest;
 import com.skillbridge.job_service.security.JwtUserPrincipal;
@@ -152,6 +154,22 @@ public class JobController {
         return jobService.getMyDashboard(extractRequiredPrincipal(authentication));
     }
 
+    @GetMapping("/search/suggestions")
+    public List<JobSearchSuggestionResponse> suggestJobs(
+            @RequestParam(name = "q") String query,
+            @RequestParam(defaultValue = "8") @Min(1) Integer limit
+    ) {
+        return jobService.suggestJobs(query, limit);
+    }
+
+    @GetMapping("/companies/search")
+    public List<CompanySearchResponse> searchCompanies(
+            @RequestParam(name = "q") String query,
+            @RequestParam(defaultValue = "10") @Min(1) Integer limit
+    ) {
+        return jobService.searchCompanies(query, limit);
+    }
+
     @GetMapping("/{jobId}")
     public JobResponse getJobById(@PathVariable @Min(1) Long jobId, Authentication authentication) {
         return jobService.getJobById(jobId, extractOptionalPrincipal(authentication));
@@ -218,6 +236,14 @@ public class JobController {
     ) {
         requireInternalApiKey(providedApiKey);
         return jobSearchAdminService.reindexJob(jobId);
+    }
+
+    @PostMapping("/internal/search/reindex/companies")
+    public JobSearchReindexResponse reindexCompanies(
+            @RequestHeader(name = INTERNAL_API_KEY_HEADER, required = false) String providedApiKey
+    ) {
+        requireInternalApiKey(providedApiKey);
+        return jobSearchAdminService.reindexAllCompanies();
     }
 
     private void requireInternalApiKey(String providedApiKey) {

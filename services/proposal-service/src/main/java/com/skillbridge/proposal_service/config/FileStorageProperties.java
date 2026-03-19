@@ -12,6 +12,7 @@ public class FileStorageProperties {
     private boolean enabled;
     private String provider = "mock";
     private long maxCvFileSizeMb = 10;
+    private long signedUrlTtlMinutes = 15;
     private List<String> allowedCvContentTypes = new ArrayList<>();
     private final S3Properties s3 = new S3Properties();
     private final MinioProperties minio = new MinioProperties();
@@ -54,6 +55,14 @@ public class FileStorageProperties {
 
     public void setAllowedCvContentTypes(List<String> allowedCvContentTypes) {
         this.allowedCvContentTypes = allowedCvContentTypes;
+    }
+
+    public long getSignedUrlTtlMinutes() {
+        return signedUrlTtlMinutes;
+    }
+
+    public void setSignedUrlTtlMinutes(long signedUrlTtlMinutes) {
+        this.signedUrlTtlMinutes = signedUrlTtlMinutes;
     }
 
     public S3Properties getS3() {

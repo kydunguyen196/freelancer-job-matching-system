@@ -43,6 +43,32 @@ public class RoutingJobSearchService implements JobSearchService {
     }
 
     @Override
+    public java.util.List<JobSearchSuggestionItem> suggest(String query, int limit) {
+        if (!shouldUseOpenSearch()) {
+            return dbJobSearchService.suggest(query, limit);
+        }
+        try {
+            return openSearchJobSearchService.suggest(query, limit);
+        } catch (RuntimeException ex) {
+            log.warn("OpenSearch suggest failed, falling back to DB search suggestions: {}", ex.getMessage());
+            return dbJobSearchService.suggest(query, limit);
+        }
+    }
+
+    @Override
+    public java.util.List<CompanySearchResultItem> searchCompanies(String query, int limit) {
+        if (!shouldUseOpenSearch()) {
+            return dbJobSearchService.searchCompanies(query, limit);
+        }
+        try {
+            return openSearchJobSearchService.searchCompanies(query, limit);
+        } catch (RuntimeException ex) {
+            log.warn("OpenSearch company search failed, falling back to DB company search: {}", ex.getMessage());
+            return dbJobSearchService.searchCompanies(query, limit);
+        }
+    }
+
+    @Override
     public boolean indexJob(Job job) {
         if (!shouldUseOpenSearch()) {
             return false;
@@ -51,11 +77,27 @@ public class RoutingJobSearchService implements JobSearchService {
     }
 
     @Override
+    public boolean indexCompany(Long clientId) {
+        if (!shouldUseOpenSearch()) {
+            return false;
+        }
+        return openSearchJobSearchService.indexCompany(clientId);
+    }
+
+    @Override
     public boolean deleteJob(Long jobId) {
         if (!shouldUseOpenSearch()) {
             return false;
         }
         return openSearchJobSearchService.deleteJob(jobId);
+    }
+
+    @Override
+    public boolean deleteCompany(Long clientId) {
+        if (!shouldUseOpenSearch()) {
+            return false;
+        }
+        return openSearchJobSearchService.deleteCompany(clientId);
     }
 
     @Override
