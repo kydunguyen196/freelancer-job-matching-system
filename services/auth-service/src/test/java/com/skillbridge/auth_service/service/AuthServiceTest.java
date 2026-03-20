@@ -20,7 +20,6 @@ import com.skillbridge.auth_service.domain.AuthUser;
 import com.skillbridge.auth_service.domain.UserRole;
 import com.skillbridge.auth_service.dto.AuthResponse;
 import com.skillbridge.auth_service.dto.LoginRequest;
-import com.skillbridge.auth_service.dto.RefreshTokenRequest;
 import com.skillbridge.auth_service.dto.RegisterRequest;
 import com.skillbridge.auth_service.repository.AuthUserRepository;
 
@@ -55,7 +54,8 @@ class AuthServiceTest {
 
         mockTokenIssuance(101L, "client@example.com", UserRole.CLIENT);
 
-        AuthResponse response = authService.register(request);
+        AuthTokenBundle bundle = authService.register(request);
+        AuthResponse response = bundle.session();
 
         ArgumentCaptor<AuthUser> userCaptor = ArgumentCaptor.forClass(AuthUser.class);
         verify(authUserRepository).save(userCaptor.capture());
@@ -67,9 +67,9 @@ class AuthServiceTest {
         assertThat(response.userId()).isEqualTo(101L);
         assertThat(response.email()).isEqualTo("client@example.com");
         assertThat(response.role()).isEqualTo("CLIENT");
-        assertThat(response.accessToken()).isEqualTo("access-token");
-        assertThat(response.refreshToken()).isEqualTo("refresh-token");
         assertThat(response.expiresIn()).isEqualTo(900L);
+        assertThat(bundle.accessToken()).isEqualTo("access-token");
+        assertThat(bundle.refreshToken()).isEqualTo("refresh-token");
     }
 
     @Test
@@ -101,7 +101,7 @@ class AuthServiceTest {
     void refreshShouldRejectInvalidRefreshToken() {
         when(jwtService.parseRefreshToken("bad-token")).thenThrow(new JwtException("invalid"));
 
-        assertThatThrownBy(() -> authService.refresh(new RefreshTokenRequest("bad-token")))
+        assertThatThrownBy(() -> authService.refresh("bad-token"))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED));
     }
@@ -121,13 +121,14 @@ class AuthServiceTest {
 
         mockTokenIssuance(777L, "client@example.com", UserRole.CLIENT);
 
-        AuthResponse response = authService.refresh(new RefreshTokenRequest("refresh-token"));
+        AuthTokenBundle bundle = authService.refresh("refresh-token");
+        AuthResponse response = bundle.session();
 
         assertThat(response.userId()).isEqualTo(777L);
         assertThat(response.email()).isEqualTo("client@example.com");
         assertThat(response.role()).isEqualTo("CLIENT");
-        assertThat(response.accessToken()).isEqualTo("access-token");
-        assertThat(response.refreshToken()).isEqualTo("refresh-token");
+        assertThat(bundle.accessToken()).isEqualTo("access-token");
+        assertThat(bundle.refreshToken()).isEqualTo("refresh-token");
     }
 
     private void mockTokenIssuance(Long userId, String email, UserRole role) {

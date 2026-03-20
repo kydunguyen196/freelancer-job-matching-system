@@ -262,12 +262,37 @@ docker compose up --build
 
 Gateway entrypoint: `http://localhost:8080`
 
+The default compose command now runs a lighter local stack:
+
+- DB-backed search by default
+- mock CV storage by default
+- no OpenSearch or MinIO containers unless profiles are enabled
+
+To run the full optional local integrations as well:
+
+```powershell
+docker compose --profile search --profile storage up --build
+```
+
 Useful service endpoints in the default compose stack:
+
+- RabbitMQ UI: `http://localhost:15672`
+
+When `search` and `storage` profiles are enabled:
 
 - OpenSearch: `http://localhost:9200`
 - MinIO API: `http://localhost:9000`
 - MinIO console: `http://localhost:9001`
-- RabbitMQ UI: `http://localhost:15672`
+
+### Deploy Baseline Added
+
+- Flyway migration scaffolding for every database-backed service
+- `application-prod.yml` for all services
+- Docker images now run with container-aware JVM settings and non-root users
+- Gateway now adds security headers and basic auth rate limiting
+- Production env templates:
+  - `.env.production.example`
+  - `.env.example`
 
 ### Swagger URLs
 

@@ -1,9 +1,12 @@
 server:
   port: 8081
+  shutdown: graceful
 
 spring:
   application:
     name: auth-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/auth_db}
@@ -12,33 +15,51 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${APP_JPA_DDL_AUTO:update}
     properties:
       hibernate:
         format_sql: true
     open-in-view: false
+  flyway:
+    enabled: ${APP_FLYWAY_ENABLED:true}
+    baseline-on-migrate: ${APP_FLYWAY_BASELINE_ON_MIGRATE:true}
 
 logging:
   pattern:
     level: "%5p [cid:%X{correlationId:-}]"
   level:
-    org.hibernate.SQL: debug
-    org.springframework.security: info
+    org.hibernate.SQL: ${APP_SQL_LOG_LEVEL:debug}
+    org.springframework.security: ${APP_SECURITY_LOG_LEVEL:info}
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 app:
   jwt:
     secret: ${APP_JWT_SECRET:change-this-secret-key-to-at-least-32-characters-long-for-dev}
     access-token-expiration-ms: ${APP_JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
     refresh-token-expiration-ms: ${APP_JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+  auth:
+    cookie:
+      access-name: ${APP_AUTH_COOKIE_ACCESS_NAME:sb_access_token}
+      refresh-name: ${APP_AUTH_COOKIE_REFRESH_NAME:sb_refresh_token}
+      secure: ${APP_AUTH_COOKIE_SECURE:false}
+      same-site: ${APP_AUTH_COOKIE_SAME_SITE:Lax}
+      domain: ${APP_AUTH_COOKIE_DOMAIN:}
+      access-path: ${APP_AUTH_COOKIE_ACCESS_PATH:/}
+      refresh-path: ${APP_AUTH_COOKIE_REFRESH_PATH:/auth}
 
 springdoc:
   api-docs:
     path: /v3/api-docs
+    enabled: ${APP_DOCS_ENABLED:true}
   swagger-ui:
     path: /swagger-ui.html
+    enabled: ${APP_DOCS_ENABLED:true}

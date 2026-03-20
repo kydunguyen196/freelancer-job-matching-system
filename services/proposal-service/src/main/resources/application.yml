@@ -1,9 +1,12 @@
 server:
   port: 8084
+  shutdown: graceful
 
 spring:
   application:
     name: proposal-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   servlet:
     multipart:
       max-file-size: ${MAX_CV_FILE_SIZE_MB:10}MB
@@ -21,23 +24,30 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${APP_JPA_DDL_AUTO:update}
     properties:
       hibernate:
         format_sql: true
     open-in-view: false
+  flyway:
+    enabled: ${APP_FLYWAY_ENABLED:true}
+    baseline-on-migrate: ${APP_FLYWAY_BASELINE_ON_MIGRATE:true}
 
 logging:
   pattern:
     level: "%5p [cid:%X{correlationId:-}]"
   level:
-    org.hibernate.SQL: debug
+    org.hibernate.SQL: ${APP_SQL_LOG_LEVEL:debug}
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 app:
   jwt:
@@ -82,9 +92,18 @@ app:
       secure: ${MINIO_SECURE:false}
   internal:
     api-key: ${APP_INTERNAL_API_KEY:change-this-contract-internal-api-key}
+  outbox:
+    enabled: ${APP_OUTBOX_ENABLED:true}
+    batch-size: ${APP_OUTBOX_BATCH_SIZE:50}
+    dispatch-interval-ms: ${APP_OUTBOX_DISPATCH_INTERVAL_MS:5000}
+    initial-retry-delay-seconds: ${APP_OUTBOX_INITIAL_RETRY_DELAY_SECONDS:5}
+    retry-multiplier: ${APP_OUTBOX_RETRY_MULTIPLIER:2.0}
+    max-retry-delay-seconds: ${APP_OUTBOX_MAX_RETRY_DELAY_SECONDS:300}
 
 springdoc:
   api-docs:
     path: /v3/api-docs
+    enabled: ${APP_DOCS_ENABLED:true}
   swagger-ui:
     path: /swagger-ui.html
+    enabled: ${APP_DOCS_ENABLED:true}

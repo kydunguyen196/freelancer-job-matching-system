@@ -1,9 +1,12 @@
 server:
   port: 8083
+  shutdown: graceful
 
 spring:
   application:
     name: job-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/job_db}
@@ -12,23 +15,30 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${APP_JPA_DDL_AUTO:update}
     properties:
       hibernate:
         format_sql: true
     open-in-view: false
+  flyway:
+    enabled: ${APP_FLYWAY_ENABLED:true}
+    baseline-on-migrate: ${APP_FLYWAY_BASELINE_ON_MIGRATE:true}
 
 logging:
   pattern:
     level: "%5p [cid:%X{correlationId:-}]"
   level:
-    org.hibernate.SQL: debug
+    org.hibernate.SQL: ${APP_SQL_LOG_LEVEL:debug}
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 app:
   jwt:
@@ -54,5 +64,7 @@ app:
 springdoc:
   api-docs:
     path: /v3/api-docs
+    enabled: ${APP_DOCS_ENABLED:true}
   swagger-ui:
     path: /swagger-ui.html
+    enabled: ${APP_DOCS_ENABLED:true}

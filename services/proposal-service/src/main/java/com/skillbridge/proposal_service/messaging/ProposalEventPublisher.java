@@ -1,25 +1,36 @@
 package com.skillbridge.proposal_service.messaging;
 
+import java.time.Instant;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.AmqpException;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
 import com.skillbridge.common.events.EventTopics;
 import com.skillbridge.common.events.ProposalAcceptedEvent;
 import com.skillbridge.common.events.ProposalCreatedEvent;
+import com.skillbridge.proposal_service.domain.ProposalOutboxEvent;
+import com.skillbridge.proposal_service.domain.ProposalOutboxEventType;
 import com.skillbridge.proposal_service.domain.Proposal;
+import com.skillbridge.proposal_service.repository.ProposalOutboxEventRepository;
 
 @Component
 public class ProposalEventPublisher {
 
     private static final Logger log = LoggerFactory.getLogger(ProposalEventPublisher.class);
+    private static final String PROPOSAL_AGGREGATE_TYPE = "proposal";
 
-    private final RabbitTemplate rabbitTemplate;
+    private final ProposalOutboxEventRepository outboxEventRepository;
+    private final ObjectMapper objectMapper;
 
-    public ProposalEventPublisher(RabbitTemplate rabbitTemplate) {
-        this.rabbitTemplate = rabbitTemplate;
+    public ProposalEventPublisher(
+            ProposalOutboxEventRepository outboxEventRepository,
+            ObjectMapper objectMapper
+    ) {
+        this.outboxEventRepository = outboxEventRepository;
+        this.objectMapper = objectMapper;
     }
 
     public void publishProposalCreated(Proposal proposal, Long clientId) {
@@ -30,7 +41,12 @@ public class ProposalEventPublisher {
                 clientId,
                 proposal.getCreatedAt()
         );
-        publish(EventTopics.PROPOSAL_CREATED_ROUTING_KEY, event, "ProposalCreatedEvent", proposal.getId());
+        enqueue(
+                proposal.getId(),
+                ProposalOutboxEventType.PROPOSAL_CREATED,
+                EventTopics.PROPOSAL_CREATED_ROUTING_KEY,
+                event
+        );
     }
 
     public void publishProposalAccepted(Proposal proposal, Long clientId) {
@@ -42,14 +58,28 @@ public class ProposalEventPublisher {
                 proposal.getFreelancerEmail(),
                 proposal.getAcceptedAt()
         );
-        publish(EventTopics.PROPOSAL_ACCEPTED_ROUTING_KEY, event, "ProposalAcceptedEvent", proposal.getId());
+        enqueue(
+                proposal.getId(),
+                ProposalOutboxEventType.PROPOSAL_ACCEPTED,
+                EventTopics.PROPOSAL_ACCEPTED_ROUTING_KEY,
+                event
+        );
     }
 
-    private void publish(String routingKey, Object payload, String eventName, Long proposalId) {
+    private void enqueue(Long proposalId, ProposalOutboxEventType eventType, String routingKey, Object payload) {
         try {
-            rabbitTemplate.convertAndSend(EventTopics.EXCHANGE_NAME, routingKey, payload);
-        } catch (AmqpException ex) {
-            log.warn("Failed to publish {} for proposalId={}: {}", eventName, proposalId, ex.getMessage());
+            ProposalOutboxEvent event = new ProposalOutboxEvent();
+            event.setAggregateType(PROPOSAL_AGGREGATE_TYPE);
+            event.setAggregateId(proposalId);
+            event.setEventType(eventType);
+            event.setExchangeName(EventTopics.EXCHANGE_NAME);
+            event.setRoutingKey(routingKey);
+            event.setPayload(objectMapper.writeValueAsString(payload));
+            event.setAttempts(0);
+            event.setNextAttemptAt(Instant.now());
+            outboxEventRepository.save(event);
+        } catch (JsonProcessingException ex) {
+            log.warn("Failed to serialize outbox event type={} aggregateId={}: {}", eventType, proposalId, ex.getMessage());
         }
     }
 }

@@ -34,6 +34,7 @@ services:
     image: opensearchproject/opensearch:2.18.0
     container_name: skillbridge-opensearch
     restart: unless-stopped
+    profiles: ["search"]
     environment:
       discovery.type: single-node
       plugins.security.disabled: "true"
@@ -46,7 +47,7 @@ services:
     ports:
       - "9200:9200"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/9200'"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -57,6 +58,7 @@ services:
     image: minio/minio:RELEASE.2025-02-18T16-25-55Z
     container_name: skillbridge-minio
     restart: unless-stopped
+    profiles: ["storage"]
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
@@ -64,23 +66,19 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live >/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
     volumes:
       - minio-data:/data
 
   minio-init:
     image: minio/mc:RELEASE.2025-02-15T10-36-16Z
     container_name: skillbridge-minio-init
+    profiles: ["storage"]
     depends_on:
       minio:
-        condition: service_healthy
+        condition: service_started
     entrypoint: >
       /bin/sh -c "
-      mc alias set skillbridge http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} &&
+      until mc alias set skillbridge http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin}; do sleep 2; done &&
       mc mb -p skillbridge/${MINIO_BUCKET:-skillbridge-cv} || true &&
       mc anonymous set none skillbridge/${MINIO_BUCKET:-skillbridge-cv} || true
       "
@@ -97,6 +95,20 @@ services:
       DB_USERNAME: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       APP_JWT_SECRET: ${APP_JWT_SECRET:-change-this-secret-key-to-at-least-32-characters-long-for-dev}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      APP_JPA_DDL_AUTO: ${APP_JPA_DDL_AUTO:-update}
+      APP_FLYWAY_ENABLED: ${APP_FLYWAY_ENABLED:-true}
+      APP_FLYWAY_BASELINE_ON_MIGRATE: ${APP_FLYWAY_BASELINE_ON_MIGRATE:-true}
+      APP_DOCS_ENABLED: ${APP_DOCS_ENABLED:-true}
+      APP_SQL_LOG_LEVEL: ${APP_SQL_LOG_LEVEL:-debug}
+      APP_SECURITY_LOG_LEVEL: ${APP_SECURITY_LOG_LEVEL:-info}
+      APP_AUTH_COOKIE_ACCESS_NAME: ${APP_AUTH_COOKIE_ACCESS_NAME:-sb_access_token}
+      APP_AUTH_COOKIE_REFRESH_NAME: ${APP_AUTH_COOKIE_REFRESH_NAME:-sb_refresh_token}
+      APP_AUTH_COOKIE_SECURE: ${APP_AUTH_COOKIE_SECURE:-false}
+      APP_AUTH_COOKIE_SAME_SITE: ${APP_AUTH_COOKIE_SAME_SITE:-Lax}
+      APP_AUTH_COOKIE_DOMAIN: ${APP_AUTH_COOKIE_DOMAIN:-}
+      APP_AUTH_COOKIE_ACCESS_PATH: ${APP_AUTH_COOKIE_ACCESS_PATH:-/}
+      APP_AUTH_COOKIE_REFRESH_PATH: ${APP_AUTH_COOKIE_REFRESH_PATH:-/auth}
     depends_on:
       postgres:
         condition: service_healthy
@@ -114,11 +126,56 @@ services:
       DB_USERNAME: ${POSTGRES_USER:-postgres}
       DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       APP_JWT_SECRET: ${APP_JWT_SECRET:-change-this-secret-key-to-at-least-32-characters-long-for-dev}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      APP_JPA_DDL_AUTO: ${APP_JPA_DDL_AUTO:-update}
+      APP_FLYWAY_ENABLED: ${APP_FLYWAY_ENABLED:-true}
+      APP_FLYWAY_BASELINE_ON_MIGRATE: ${APP_FLYWAY_BASELINE_ON_MIGRATE:-true}
+      APP_DOCS_ENABLED: ${APP_DOCS_ENABLED:-true}
+      APP_SQL_LOG_LEVEL: ${APP_SQL_LOG_LEVEL:-debug}
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - "8082:8082"
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    container_name: skillbridge-notification-service
+    restart: unless-stopped
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/notification_db
+      DB_USERNAME: ${POSTGRES_USER:-postgres}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:-change-this-secret-key-to-at-least-32-characters-long-for-dev}
+      APP_INTERNAL_API_KEY: ${APP_INTERNAL_API_KEY:-change-this-contract-internal-api-key}
+      ENABLE_EMAIL: ${ENABLE_EMAIL:-false}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-SkillBridge}
+      SENDGRID_BASE_URL: ${SENDGRID_BASE_URL:-https://api.sendgrid.com}
+      EMAIL_MAX_ATTEMPTS: ${EMAIL_MAX_ATTEMPTS:-5}
+      EMAIL_INITIAL_RETRY_DELAY_SECONDS: ${EMAIL_INITIAL_RETRY_DELAY_SECONDS:-60}
+      EMAIL_RETRY_MULTIPLIER: ${EMAIL_RETRY_MULTIPLIER:-2.0}
+      EMAIL_RETRY_POLL_DELAY_MS: ${EMAIL_RETRY_POLL_DELAY_MS:-60000}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      APP_JPA_DDL_AUTO: ${APP_JPA_DDL_AUTO:-update}
+      APP_FLYWAY_ENABLED: ${APP_FLYWAY_ENABLED:-true}
+      APP_FLYWAY_BASELINE_ON_MIGRATE: ${APP_FLYWAY_BASELINE_ON_MIGRATE:-true}
+      APP_DOCS_ENABLED: ${APP_DOCS_ENABLED:-true}
+      APP_SQL_LOG_LEVEL: ${APP_SQL_LOG_LEVEL:-debug}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8086:8086"
 
   job-service:
     build:
@@ -133,8 +190,8 @@ services:
       APP_JWT_SECRET: ${APP_JWT_SECRET:-change-this-secret-key-to-at-least-32-characters-long-for-dev}
       APP_INTERNAL_API_KEY: ${APP_INTERNAL_API_KEY:-change-this-contract-internal-api-key}
       APP_SERVICES_NOTIFICATION_BASE_URL: http://notification-service:8086
-      ENABLE_ADVANCED_SEARCH: ${ENABLE_ADVANCED_SEARCH:-true}
-      SEARCH_PROVIDER: ${SEARCH_PROVIDER:-opensearch}
+      ENABLE_ADVANCED_SEARCH: ${ENABLE_ADVANCED_SEARCH:-false}
+      SEARCH_PROVIDER: ${SEARCH_PROVIDER:-db}
       OPENSEARCH_URL: ${OPENSEARCH_URL:-http://opensearch:9200}
       OPENSEARCH_USERNAME: ${OPENSEARCH_USERNAME:-}
       OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD:-}
@@ -142,13 +199,23 @@ services:
       OPENSEARCH_INDEX_COMPANIES: ${OPENSEARCH_INDEX_COMPANIES:-companies}
       OPENSEARCH_CONNECT_TIMEOUT_MS: ${OPENSEARCH_CONNECT_TIMEOUT_MS:-3000}
       OPENSEARCH_SOCKET_TIMEOUT_MS: ${OPENSEARCH_SOCKET_TIMEOUT_MS:-5000}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      APP_JPA_DDL_AUTO: ${APP_JPA_DDL_AUTO:-update}
+      APP_FLYWAY_ENABLED: ${APP_FLYWAY_ENABLED:-true}
+      APP_FLYWAY_BASELINE_ON_MIGRATE: ${APP_FLYWAY_BASELINE_ON_MIGRATE:-true}
+      APP_DOCS_ENABLED: ${APP_DOCS_ENABLED:-true}
+      APP_SQL_LOG_LEVEL: ${APP_SQL_LOG_LEVEL:-debug}
+      APP_OUTBOX_ENABLED: ${APP_OUTBOX_ENABLED:-true}
+      APP_OUTBOX_BATCH_SIZE: ${APP_OUTBOX_BATCH_SIZE:-50}
+      APP_OUTBOX_DISPATCH_INTERVAL_MS: ${APP_OUTBOX_DISPATCH_INTERVAL_MS:-5000}
+      APP_OUTBOX_INITIAL_RETRY_DELAY_SECONDS: ${APP_OUTBOX_INITIAL_RETRY_DELAY_SECONDS:-5}
+      APP_OUTBOX_RETRY_MULTIPLIER: ${APP_OUTBOX_RETRY_MULTIPLIER:-2.0}
+      APP_OUTBOX_MAX_RETRY_DELAY_SECONDS: ${APP_OUTBOX_MAX_RETRY_DELAY_SECONDS:-300}
     depends_on:
       postgres:
         condition: service_healthy
       notification-service:
         condition: service_started
-      opensearch:
-        condition: service_healthy
     ports:
       - "8083:8083"
 
@@ -168,6 +235,18 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
       APP_JWT_SECRET: ${APP_JWT_SECRET:-change-this-secret-key-to-at-least-32-characters-long-for-dev}
       APP_INTERNAL_API_KEY: ${APP_INTERNAL_API_KEY:-change-this-contract-internal-api-key}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      APP_JPA_DDL_AUTO: ${APP_JPA_DDL_AUTO:-update}
+      APP_FLYWAY_ENABLED: ${APP_FLYWAY_ENABLED:-true}
+      APP_FLYWAY_BASELINE_ON_MIGRATE: ${APP_FLYWAY_BASELINE_ON_MIGRATE:-true}
+      APP_DOCS_ENABLED: ${APP_DOCS_ENABLED:-true}
+      APP_SQL_LOG_LEVEL: ${APP_SQL_LOG_LEVEL:-debug}
+      APP_OUTBOX_ENABLED: ${APP_OUTBOX_ENABLED:-true}
+      APP_OUTBOX_BATCH_SIZE: ${APP_OUTBOX_BATCH_SIZE:-50}
+      APP_OUTBOX_DISPATCH_INTERVAL_MS: ${APP_OUTBOX_DISPATCH_INTERVAL_MS:-5000}
+      APP_OUTBOX_INITIAL_RETRY_DELAY_SECONDS: ${APP_OUTBOX_INITIAL_RETRY_DELAY_SECONDS:-5}
+      APP_OUTBOX_RETRY_MULTIPLIER: ${APP_OUTBOX_RETRY_MULTIPLIER:-2.0}
+      APP_OUTBOX_MAX_RETRY_DELAY_SECONDS: ${APP_OUTBOX_MAX_RETRY_DELAY_SECONDS:-300}
     depends_on:
       postgres:
         condition: service_healthy
@@ -196,10 +275,16 @@ services:
       APP_SERVICES_NOTIFICATION_BASE_URL: http://notification-service:8086
       APP_INTERNAL_API_KEY: ${APP_INTERNAL_API_KEY:-change-this-contract-internal-api-key}
       ENABLE_FILE_STORAGE: ${ENABLE_FILE_STORAGE:-true}
-      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-minio}
+      STORAGE_PROVIDER: ${STORAGE_PROVIDER:-mock}
       MAX_CV_FILE_SIZE_MB: ${MAX_CV_FILE_SIZE_MB:-10}
       CV_SIGNED_URL_TTL_MINUTES: ${CV_SIGNED_URL_TTL_MINUTES:-15}
       ALLOWED_CV_CONTENT_TYPES: ${ALLOWED_CV_CONTENT_TYPES:-application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document}
+      MOCK_STORAGE_BASE_DIR: ${MOCK_STORAGE_BASE_DIR:-}
+      MOCK_STORAGE_BUCKET: ${MOCK_STORAGE_BUCKET:-mock-local}
+      S3_BUCKET: ${S3_BUCKET:-}
+      AWS_REGION: ${AWS_REGION:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
       MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
@@ -213,6 +298,14 @@ services:
       GOOGLE_CALENDAR_ID: ${GOOGLE_CALENDAR_ID:-}
       GOOGLE_SCOPES: ${GOOGLE_SCOPES:-https://www.googleapis.com/auth/calendar}
       GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN:-}
+      GOOGLE_TOKEN_URL: ${GOOGLE_TOKEN_URL:-https://oauth2.googleapis.com/token}
+      GOOGLE_API_BASE_URL: ${GOOGLE_API_BASE_URL:-https://www.googleapis.com}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      APP_JPA_DDL_AUTO: ${APP_JPA_DDL_AUTO:-update}
+      APP_FLYWAY_ENABLED: ${APP_FLYWAY_ENABLED:-true}
+      APP_FLYWAY_BASELINE_ON_MIGRATE: ${APP_FLYWAY_BASELINE_ON_MIGRATE:-true}
+      APP_DOCS_ENABLED: ${APP_DOCS_ENABLED:-true}
+      APP_SQL_LOG_LEVEL: ${APP_SQL_LOG_LEVEL:-debug}
     depends_on:
       postgres:
         condition: service_healthy
@@ -224,40 +317,8 @@ services:
         condition: service_started
       notification-service:
         condition: service_started
-      minio:
-        condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
     ports:
       - "8084:8084"
-
-  notification-service:
-    build:
-      context: .
-      dockerfile: services/notification-service/Dockerfile
-    container_name: skillbridge-notification-service
-    restart: unless-stopped
-    environment:
-      DB_URL: jdbc:postgresql://postgres:5432/notification_db
-      DB_USERNAME: ${POSTGRES_USER:-postgres}
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME:-guest}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:-guest}
-      APP_JWT_SECRET: ${APP_JWT_SECRET:-change-this-secret-key-to-at-least-32-characters-long-for-dev}
-      APP_INTERNAL_API_KEY: ${APP_INTERNAL_API_KEY:-change-this-contract-internal-api-key}
-      ENABLE_EMAIL: ${ENABLE_EMAIL:-false}
-      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
-      MAIL_FROM_EMAIL: ${MAIL_FROM_EMAIL:-}
-      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-SkillBridge}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    ports:
-      - "8086:8086"
 
   gateway-service:
     build:
@@ -273,6 +334,18 @@ services:
       PROPOSAL_SERVICE_URL: http://proposal-service:8084
       CONTRACT_SERVICE_URL: http://contract-service:8085
       NOTIFICATION_SERVICE_URL: http://notification-service:8086
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-}
+      APP_DOCS_ENABLED: ${APP_DOCS_ENABLED:-true}
+      APP_GATEWAY_LOG_LEVEL: ${APP_GATEWAY_LOG_LEVEL:-info}
+      APP_AUTH_RATE_LIMIT_ENABLED: ${APP_AUTH_RATE_LIMIT_ENABLED:-true}
+      APP_AUTH_RATE_LIMIT_TRUST_FORWARDED_FOR: ${APP_AUTH_RATE_LIMIT_TRUST_FORWARDED_FOR:-true}
+      APP_AUTH_RATE_LIMIT_WINDOW_SECONDS: ${APP_AUTH_RATE_LIMIT_WINDOW_SECONDS:-60}
+      APP_AUTH_LOGIN_MAX_REQUESTS: ${APP_AUTH_LOGIN_MAX_REQUESTS:-10}
+      APP_AUTH_REGISTER_MAX_REQUESTS: ${APP_AUTH_REGISTER_MAX_REQUESTS:-5}
+      APP_AUTH_REFRESH_MAX_REQUESTS: ${APP_AUTH_REFRESH_MAX_REQUESTS:-20}
+      APP_SECURITY_HSTS_ENABLED: ${APP_SECURITY_HSTS_ENABLED:-false}
+      APP_SECURITY_HSTS_MAX_AGE_SECONDS: ${APP_SECURITY_HSTS_MAX_AGE_SECONDS:-31536000}
+      APP_AUTH_COOKIE_ACCESS_NAME: ${APP_AUTH_COOKIE_ACCESS_NAME:-sb_access_token}
     depends_on:
       auth-service:
         condition: service_started

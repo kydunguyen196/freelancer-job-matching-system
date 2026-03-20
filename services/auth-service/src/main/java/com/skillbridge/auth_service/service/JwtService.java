@@ -63,8 +63,21 @@ public class JwtService {
         return claims;
     }
 
+    public Claims parseAccessToken(String token) {
+        Claims claims = parseClaims(token);
+        String tokenType = claims.get("type", String.class);
+        if (!ACCESS_TOKEN_TYPE.equals(tokenType)) {
+            throw new JwtException("Invalid token type");
+        }
+        return claims;
+    }
+
     public long getAccessTokenExpirationSeconds() {
         return jwtProperties.getAccessTokenExpirationMs() / 1000;
+    }
+
+    public long getRefreshTokenExpirationSeconds() {
+        return jwtProperties.getRefreshTokenExpirationMs() / 1000;
     }
 
     private String generateToken(AuthUser user, String tokenType, long ttlMs) {

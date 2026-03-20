@@ -24,10 +24,5 @@ logs/
 # Env (secrets)
 .env
 
-# Spring config by environment (không push secret)
-application-local.yml
-application-dev.yml
-application-prod.yml
-
 # Docker volumes/data
 docker-data/

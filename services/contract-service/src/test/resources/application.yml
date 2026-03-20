@@ -1,0 +1,7 @@
+spring:
+  flyway:
+    enabled: false
+
+app:
+  outbox:
+    enabled: false
