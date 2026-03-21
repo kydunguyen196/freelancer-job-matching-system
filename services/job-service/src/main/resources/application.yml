@@ -58,6 +58,8 @@ app:
       socket-timeout-ms: ${OPENSEARCH_SOCKET_TIMEOUT_MS:5000}
   services:
     notification-base-url: ${APP_SERVICES_NOTIFICATION_BASE_URL:http://localhost:8086}
+    proposal-base-url: ${APP_SERVICES_PROPOSAL_BASE_URL:http://localhost:8084}
+    contract-base-url: ${APP_SERVICES_CONTRACT_BASE_URL:http://localhost:8085}
   internal:
     api-key: ${APP_INTERNAL_API_KEY:change-this-contract-internal-api-key}
 

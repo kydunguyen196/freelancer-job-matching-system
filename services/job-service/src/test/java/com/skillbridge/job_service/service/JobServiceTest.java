@@ -55,14 +55,21 @@ class JobServiceTest {
         CreateJobRequest request = new CreateJobRequest(
                 "Build API",
                 "Need backend implementation",
+                null,
+                null,
+                null,
                 BigDecimal.valueOf(100),
                 BigDecimal.valueOf(200),
                 List.of("java"),
                 "Acme",
                 "Ho Chi Minh",
                 EmploymentType.FULL_TIME,
+                null,
                 true,
                 3,
+                null,
+                null,
+                null,
                 JobStatus.OPEN,
                 Instant.now().plusSeconds(86_400)
         );
@@ -78,14 +85,21 @@ class JobServiceTest {
         CreateJobRequest request = new CreateJobRequest(
                 " Build API ",
                 " Create microservice ",
+                null,
+                null,
+                null,
                 BigDecimal.valueOf(300),
                 BigDecimal.valueOf(500),
                 List.of("Java", " spring ", "JAVA"),
                 " Acme Corp ",
                 " Ho Chi Minh City ",
                 EmploymentType.FULL_TIME,
+                null,
                 true,
                 4,
+                null,
+                null,
+                null,
                 JobStatus.DRAFT,
                 Instant.now().plusSeconds(86_400)
         );

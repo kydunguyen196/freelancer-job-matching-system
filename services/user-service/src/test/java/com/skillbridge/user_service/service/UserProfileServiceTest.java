@@ -11,10 +11,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -34,8 +34,16 @@ class UserProfileServiceTest {
     @Mock
     private UserProfileRepository userProfileRepository;
 
-    @InjectMocks
     private UserProfileService userProfileService;
+
+    @BeforeEach
+    void setUp() {
+        userProfileService = new UserProfileService(
+                userProfileRepository,
+                3,
+                "image/jpeg,image/png,image/webp,image/gif"
+        );
+    }
 
     @Test
     void getMyProfileShouldCreateDefaultProfileWhenMissing() {

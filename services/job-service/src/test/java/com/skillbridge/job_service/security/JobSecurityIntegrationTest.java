@@ -32,6 +32,7 @@ import com.skillbridge.job_service.dto.JobResponse;
 import com.skillbridge.job_service.dto.PagedResult;
 import com.skillbridge.job_service.service.JobSearchAdminService;
 import com.skillbridge.job_service.service.JobService;
+import com.skillbridge.job_service.service.RecruiterReportService;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -55,6 +56,9 @@ class JobSecurityIntegrationTest {
 
     @MockitoBean
     private JobSearchAdminService jobSearchAdminService;
+
+    @MockitoBean
+    private RecruiterReportService recruiterReportService;
 
     @Test
     void createJobShouldRequireAuthentication() throws Exception {
@@ -97,6 +101,9 @@ class JobSecurityIntegrationTest {
                 1L,
                 "Build API",
                 "Need backend",
+                null,
+                null,
+                null,
                 BigDecimal.valueOf(100),
                 BigDecimal.valueOf(200),
                 List.of("java"),
@@ -105,8 +112,12 @@ class JobSecurityIntegrationTest {
                 "Acme",
                 "HCM",
                 "FULL_TIME",
+                "REMOTE",
                 true,
                 3,
+                null,
+                "PUBLIC",
+                1,
                 Instant.now(),
                 Instant.now(),
                 Instant.now(),

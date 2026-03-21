@@ -159,8 +159,12 @@ public class DbJobSearchService implements JobSearchService {
         return (root, query, cb) -> cb.or(
                 cb.like(cb.lower(root.get("title")), pattern),
                 cb.like(cb.lower(root.get("description")), pattern),
+                cb.like(cb.lower(root.get("requirements")), pattern),
+                cb.like(cb.lower(root.get("responsibilities")), pattern),
+                cb.like(cb.lower(root.get("benefits")), pattern),
                 cb.like(cb.lower(root.get("location")), pattern),
-                cb.like(cb.lower(root.get("companyName")), pattern)
+                cb.like(cb.lower(root.get("companyName")), pattern),
+                cb.like(cb.lower(root.get("category")), pattern)
         );
     }
 

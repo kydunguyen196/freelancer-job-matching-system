@@ -1,6 +1,7 @@
 package com.skillbridge.user_service.service;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -10,6 +11,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,6 +20,8 @@ import org.springframework.web.server.ResponseStatusException;
 import com.skillbridge.user_service.domain.UserProfile;
 import com.skillbridge.user_service.domain.UserRole;
 import com.skillbridge.user_service.dto.ProfileResponse;
+import com.skillbridge.user_service.dto.ProfileMediaAssetResponse;
+import com.skillbridge.user_service.dto.ProfileMediaResponse;
 import com.skillbridge.user_service.dto.UpdateProfileRequest;
 import com.skillbridge.user_service.repository.UserProfileRepository;
 import com.skillbridge.user_service.security.JwtUserPrincipal;
@@ -36,9 +40,17 @@ public class UserProfileService {
     private static final Pattern PHONE_PATTERN = Pattern.compile("^[0-9+()\\-\\s]{7,20}$");
 
     private final UserProfileRepository userProfileRepository;
+    private final long maxProfileMediaSizeBytes;
+    private final Set<String> allowedProfileMediaContentTypes;
 
-    public UserProfileService(UserProfileRepository userProfileRepository) {
+    public UserProfileService(
+            UserProfileRepository userProfileRepository,
+            @Value("${app.media.max-file-size-mb:3}") int maxMediaFileSizeMb,
+            @Value("${app.media.allowed-content-types:image/jpeg,image/png,image/webp,image/gif}") String allowedContentTypes
+    ) {
         this.userProfileRepository = userProfileRepository;
+        this.maxProfileMediaSizeBytes = Math.max(1, maxMediaFileSizeMb) * 1024L * 1024L;
+        this.allowedProfileMediaContentTypes = parseAllowedMediaTypes(allowedContentTypes);
     }
 
     @Transactional
@@ -107,6 +119,108 @@ public class UserProfileService {
 
         UserProfile savedProfile = userProfileRepository.save(profile);
         return toResponse(savedProfile);
+    }
+
+    @Transactional
+    public ProfileMediaResponse getMyMedia(JwtUserPrincipal principal) {
+        UserProfile profile = userProfileRepository.findByAuthUserId(principal.userId())
+                .orElseGet(() -> userProfileRepository.save(createDefaultProfile(principal)));
+        ensureRoleConsistency(profile, principal);
+        profile.setEmail(principal.email());
+        return toMediaResponse(profile);
+    }
+
+    @Transactional
+    public ProfileMediaResponse uploadAvatar(JwtUserPrincipal principal, MultipartFile file) {
+        UserProfile profile = userProfileRepository.findByAuthUserId(principal.userId())
+                .orElseGet(() -> createDefaultProfile(principal));
+        ensureRoleConsistency(profile, principal);
+        profile.setEmail(principal.email());
+
+        MediaUploadPayload payload = normalizeProfileMedia(file, "avatar");
+        profile.setAvatarFileName(payload.fileName());
+        profile.setAvatarContentType(payload.contentType());
+        profile.setAvatarData(payload.bytes());
+        profile.setAvatarUploadedAt(Instant.now());
+
+        return toMediaResponse(userProfileRepository.save(profile));
+    }
+
+    @Transactional
+    public ProfileMediaResponse deleteAvatar(JwtUserPrincipal principal) {
+        UserProfile profile = userProfileRepository.findByAuthUserId(principal.userId())
+                .orElseGet(() -> createDefaultProfile(principal));
+        ensureRoleConsistency(profile, principal);
+        profile.setEmail(principal.email());
+
+        profile.setAvatarFileName(null);
+        profile.setAvatarContentType(null);
+        profile.setAvatarData(null);
+        profile.setAvatarUploadedAt(null);
+        return toMediaResponse(userProfileRepository.save(profile));
+    }
+
+    @Transactional
+    public ProfileMediaResponse uploadCompanyLogo(JwtUserPrincipal principal, MultipartFile file) {
+        UserProfile profile = userProfileRepository.findByAuthUserId(principal.userId())
+                .orElseGet(() -> createDefaultProfile(principal));
+        ensureRoleConsistency(profile, principal);
+        profile.setEmail(principal.email());
+
+        if (profile.getRole() != UserRole.CLIENT) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only CLIENT accounts can upload company logo");
+        }
+
+        MediaUploadPayload payload = normalizeProfileMedia(file, "company logo");
+        profile.setCompanyLogoFileName(payload.fileName());
+        profile.setCompanyLogoContentType(payload.contentType());
+        profile.setCompanyLogoData(payload.bytes());
+        profile.setCompanyLogoUploadedAt(Instant.now());
+
+        return toMediaResponse(userProfileRepository.save(profile));
+    }
+
+    @Transactional
+    public ProfileMediaResponse deleteCompanyLogo(JwtUserPrincipal principal) {
+        UserProfile profile = userProfileRepository.findByAuthUserId(principal.userId())
+                .orElseGet(() -> createDefaultProfile(principal));
+        ensureRoleConsistency(profile, principal);
+        profile.setEmail(principal.email());
+
+        if (profile.getRole() != UserRole.CLIENT) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only CLIENT accounts can delete company logo");
+        }
+
+        profile.setCompanyLogoFileName(null);
+        profile.setCompanyLogoContentType(null);
+        profile.setCompanyLogoData(null);
+        profile.setCompanyLogoUploadedAt(null);
+        return toMediaResponse(userProfileRepository.save(profile));
+    }
+
+    @Transactional(readOnly = true)
+    public DownloadedMedia downloadAvatar(JwtUserPrincipal principal) {
+        UserProfile profile = userProfileRepository.findByAuthUserId(principal.userId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profile not found"));
+        ensureRoleConsistency(profile, principal);
+        if (profile.getAvatarData() == null || profile.getAvatarFileName() == null || profile.getAvatarContentType() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Avatar not found");
+        }
+        return new DownloadedMedia(profile.getAvatarFileName(), profile.getAvatarContentType(), profile.getAvatarData());
+    }
+
+    @Transactional(readOnly = true)
+    public DownloadedMedia downloadCompanyLogo(JwtUserPrincipal principal) {
+        UserProfile profile = userProfileRepository.findByAuthUserId(principal.userId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Profile not found"));
+        ensureRoleConsistency(profile, principal);
+        if (profile.getRole() != UserRole.CLIENT) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only CLIENT accounts can access company logo");
+        }
+        if (profile.getCompanyLogoData() == null || profile.getCompanyLogoFileName() == null || profile.getCompanyLogoContentType() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Company logo not found");
+        }
+        return new DownloadedMedia(profile.getCompanyLogoFileName(), profile.getCompanyLogoContentType(), profile.getCompanyLogoData());
     }
 
     private void applyClientUpdate(UserProfile profile, UpdateProfileRequest request) {
@@ -246,6 +360,69 @@ public class UserProfileService {
         return normalized.endsWith(".pdf") || normalized.endsWith(".doc") || normalized.endsWith(".docx");
     }
 
+    private MediaUploadPayload normalizeProfileMedia(MultipartFile file, String mediaName) {
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, mediaName + " file is required");
+        }
+        if (file.getSize() > maxProfileMediaSizeBytes) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    mediaName + " file exceeds allowed size of " + (maxProfileMediaSizeBytes / (1024 * 1024)) + "MB"
+            );
+        }
+
+        String fileName = normalizeFileName(file.getOriginalFilename());
+        if (fileName == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, mediaName + " file name is invalid");
+        }
+
+        String contentType = normalizeText(file.getContentType());
+        if (contentType == null) {
+            contentType = "application/octet-stream";
+        }
+        if (!allowedProfileMediaContentTypes.contains(contentType.toLowerCase(Locale.ROOT))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, mediaName + " content type is not supported");
+        }
+
+        try {
+            return new MediaUploadPayload(fileName, contentType, file.getBytes());
+        } catch (IOException ex) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Could not process " + mediaName + " file");
+        }
+    }
+
+    private Set<String> parseAllowedMediaTypes(String rawAllowedTypes) {
+        if (rawAllowedTypes == null || rawAllowedTypes.isBlank()) {
+            return Set.of("image/jpeg", "image/png", "image/webp", "image/gif");
+        }
+        return java.util.Arrays.stream(rawAllowedTypes.split(","))
+                .map(type -> type == null ? null : type.trim().toLowerCase(Locale.ROOT))
+                .filter(type -> type != null && !type.isBlank())
+                .collect(Collectors.toSet());
+    }
+
+    private ProfileMediaResponse toMediaResponse(UserProfile profile) {
+        return new ProfileMediaResponse(
+                profile.getAuthUserId(),
+                toMediaAsset("AVATAR", profile.getAvatarFileName(), profile.getAvatarContentType(), profile.getAvatarData(), profile.getAvatarUploadedAt(), "/users/me/media/avatar/download"),
+                toMediaAsset("COMPANY_LOGO", profile.getCompanyLogoFileName(), profile.getCompanyLogoContentType(), profile.getCompanyLogoData(), profile.getCompanyLogoUploadedAt(), "/users/me/media/company-logo/download")
+        );
+    }
+
+    private ProfileMediaAssetResponse toMediaAsset(
+            String type,
+            String fileName,
+            String contentType,
+            byte[] data,
+            Instant uploadedAt,
+            String downloadUrl
+    ) {
+        if (fileName == null || contentType == null || data == null) {
+            return null;
+        }
+        return new ProfileMediaAssetResponse(type, fileName, contentType, data.length, uploadedAt, downloadUrl);
+    }
+
     private ProfileResponse toResponse(UserProfile profile) {
         return new ProfileResponse(
                 profile.getAuthUserId(),
@@ -259,7 +436,23 @@ public class UserProfileService {
                 profile.getPhoneNumber(),
                 profile.getAddress(),
                 profile.getCompanyAddress(),
-                profile.getResumeFileName()
+                profile.getResumeFileName(),
+                profile.getAvatarFileName() == null ? null : "/users/me/media/avatar/download",
+                profile.getCompanyLogoFileName() == null ? null : "/users/me/media/company-logo/download"
         );
+    }
+
+    public record DownloadedMedia(
+            String fileName,
+            String contentType,
+            byte[] content
+    ) {
+    }
+
+    private record MediaUploadPayload(
+            String fileName,
+            String contentType,
+            byte[] bytes
+    ) {
     }
 }

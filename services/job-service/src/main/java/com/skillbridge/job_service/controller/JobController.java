@@ -1,6 +1,7 @@
 package com.skillbridge.job_service.controller;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -31,11 +33,19 @@ import com.skillbridge.job_service.dto.JobDashboardResponse;
 import com.skillbridge.job_service.dto.JobResponse;
 import com.skillbridge.job_service.dto.JobSearchReindexResponse;
 import com.skillbridge.job_service.dto.JobSearchSuggestionResponse;
+import com.skillbridge.job_service.dto.PatchJobRequest;
 import com.skillbridge.job_service.dto.PagedResult;
+import com.skillbridge.job_service.dto.RecruiterReportConversionResponse;
+import com.skillbridge.job_service.dto.RecruiterReportOverviewResponse;
+import com.skillbridge.job_service.dto.RecruiterReportSeriesResponse;
+import com.skillbridge.job_service.dto.RecruiterTopJobPerformanceResponse;
+import com.skillbridge.job_service.dto.UpdateJobRequest;
 import com.skillbridge.job_service.dto.UpdateJobStatusRequest;
 import com.skillbridge.job_service.security.JwtUserPrincipal;
 import com.skillbridge.job_service.service.JobSearchAdminService;
 import com.skillbridge.job_service.service.JobService;
+import com.skillbridge.job_service.service.RecruiterReportService;
+import com.skillbridge.job_service.service.ReportGroupBy;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
@@ -50,15 +60,18 @@ public class JobController {
 
     private final JobService jobService;
     private final JobSearchAdminService jobSearchAdminService;
+    private final RecruiterReportService recruiterReportService;
     private final String internalApiKey;
 
     public JobController(
             JobService jobService,
             JobSearchAdminService jobSearchAdminService,
+            RecruiterReportService recruiterReportService,
             @Value("${app.internal.api-key}") String internalApiKey
     ) {
         this.jobService = jobService;
         this.jobSearchAdminService = jobSearchAdminService;
+        this.recruiterReportService = recruiterReportService;
         this.internalApiKey = internalApiKey;
     }
 
@@ -154,6 +167,51 @@ public class JobController {
         return jobService.getMyDashboard(extractRequiredPrincipal(authentication));
     }
 
+    @GetMapping("/reports/recruiter/overview")
+    public RecruiterReportOverviewResponse getRecruiterOverview(
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
+            Authentication authentication
+    ) {
+        return recruiterReportService.getOverview(extractRequiredPrincipal(authentication), from, to);
+    }
+
+    @GetMapping("/reports/recruiter/series")
+    public RecruiterReportSeriesResponse getRecruiterSeries(
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
+            @RequestParam(defaultValue = "DAY") ReportGroupBy groupBy,
+            @RequestParam(required = false) String timezone,
+            Authentication authentication
+    ) {
+        return recruiterReportService.getSeries(
+                extractRequiredPrincipal(authentication),
+                from,
+                to,
+                groupBy,
+                timezone
+        );
+    }
+
+    @GetMapping("/reports/recruiter/conversion")
+    public RecruiterReportConversionResponse getRecruiterConversion(
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
+            Authentication authentication
+    ) {
+        return recruiterReportService.getConversion(extractRequiredPrincipal(authentication), from, to);
+    }
+
+    @GetMapping("/reports/recruiter/top-jobs")
+    public List<RecruiterTopJobPerformanceResponse> getRecruiterTopJobs(
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to,
+            @RequestParam(defaultValue = "5") @Min(1) Integer limit,
+            Authentication authentication
+    ) {
+        return recruiterReportService.getTopJobs(extractRequiredPrincipal(authentication), from, to, limit);
+    }
+
     @GetMapping("/search/suggestions")
     public List<JobSearchSuggestionResponse> suggestJobs(
             @RequestParam(name = "q") String query,
@@ -173,6 +231,24 @@ public class JobController {
     @GetMapping("/{jobId}")
     public JobResponse getJobById(@PathVariable @Min(1) Long jobId, Authentication authentication) {
         return jobService.getJobById(jobId, extractOptionalPrincipal(authentication));
+    }
+
+    @PutMapping("/{jobId}")
+    public JobResponse updateJob(
+            @PathVariable @Min(1) Long jobId,
+            @Valid @RequestBody UpdateJobRequest request,
+            Authentication authentication
+    ) {
+        return jobService.updateJob(jobId, request, extractRequiredPrincipal(authentication));
+    }
+
+    @PatchMapping("/{jobId}")
+    public JobResponse patchJob(
+            @PathVariable @Min(1) Long jobId,
+            @Valid @RequestBody PatchJobRequest request,
+            Authentication authentication
+    ) {
+        return jobService.patchJob(jobId, request, extractRequiredPrincipal(authentication));
     }
 
     @PostMapping("/{jobId}/save")

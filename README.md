@@ -64,6 +64,77 @@ Microservices backend for a freelance marketplace.
   - CV storage with `mock`, `minio`, or `s3`
   - signed direct CV download for S3-compatible providers
 
+### Recruiter Job Management Additions
+
+New APIs for full job detail editing (status transition remains separated):
+
+- `PUT /jobs/{jobId}` full update for recruiter-owned jobs
+- `PATCH /jobs/{jobId}` partial update for recruiter-owned jobs
+
+Additional job fields supported:
+
+- `requirements`
+- `responsibilities`
+- `benefits`
+- `workMode` (`ONSITE`, `REMOTE`, `HYBRID`)
+- `category`
+- `visibility` (`PUBLIC`, `PRIVATE`)
+- `openings`
+
+Business rules:
+
+- only job owner with `CLIENT` role can update
+- editable only when job status is `DRAFT` or `OPEN`
+- `budgetMin <= budgetMax`
+- `expiresAt` must be in the future when provided
+- `remote` must be consistent with `workMode`
+
+### Recruiter Reports API
+
+New dashboard/report endpoints in `job-service`:
+
+- `GET /jobs/reports/recruiter/overview`
+- `GET /jobs/reports/recruiter/series?groupBy=DAY|WEEK|MONTH&timezone=UTC`
+- `GET /jobs/reports/recruiter/conversion`
+- `GET /jobs/reports/recruiter/top-jobs?limit=5`
+
+Supported query params:
+
+- `from` (optional, ISO-8601 instant)
+- `to` (optional, ISO-8601 instant)
+- `groupBy` for series (`DAY`, `WEEK`, `MONTH`)
+- `timezone` for bucket grouping (default `UTC`)
+
+Notes:
+
+- report endpoints are `CLIENT` only
+- service aggregates data from `job-service`, `proposal-service`, and `contract-service`
+- if dependent internal analytics is unavailable, API returns partial data with warning messages
+
+### Profile Media API (Avatar/Company Logo)
+
+New endpoints in `user-service`:
+
+- `GET /users/me/media`
+- `POST /users/me/avatar` (`multipart/form-data`, field `file`)
+- `DELETE /users/me/avatar`
+- `GET /users/me/media/avatar/download`
+- `POST /users/me/company-logo` (`multipart/form-data`, field `file`)
+- `DELETE /users/me/company-logo`
+- `GET /users/me/media/company-logo/download`
+
+Rules:
+
+- all `/users/me/**` endpoints require authentication
+- avatar: available for authenticated user profile
+- company logo: only `CLIENT` profile
+- file type and size validated via env-driven config
+
+Media env:
+
+- `APP_MEDIA_MAX_FILE_SIZE_MB`
+- `APP_MEDIA_ALLOWED_CONTENT_TYPES`
+
 ### API Pagination
 
 Both paginated endpoints return list body + paging headers:

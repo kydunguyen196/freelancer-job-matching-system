@@ -101,6 +101,8 @@ services:
       APP_FLYWAY_BASELINE_ON_MIGRATE: ${APP_FLYWAY_BASELINE_ON_MIGRATE:-true}
       APP_DOCS_ENABLED: ${APP_DOCS_ENABLED:-true}
       APP_SQL_LOG_LEVEL: ${APP_SQL_LOG_LEVEL:-debug}
+      APP_MEDIA_MAX_FILE_SIZE_MB: ${APP_MEDIA_MAX_FILE_SIZE_MB:-3}
+      APP_MEDIA_ALLOWED_CONTENT_TYPES: ${APP_MEDIA_ALLOWED_CONTENT_TYPES:-image/jpeg,image/png,image/webp,image/gif}
       APP_SECURITY_LOG_LEVEL: ${APP_SECURITY_LOG_LEVEL:-info}
       APP_AUTH_COOKIE_ACCESS_NAME: ${APP_AUTH_COOKIE_ACCESS_NAME:-sb_access_token}
       APP_AUTH_COOKIE_REFRESH_NAME: ${APP_AUTH_COOKIE_REFRESH_NAME:-sb_refresh_token}
@@ -190,6 +192,8 @@ services:
       APP_JWT_SECRET: ${APP_JWT_SECRET:-change-this-secret-key-to-at-least-32-characters-long-for-dev}
       APP_INTERNAL_API_KEY: ${APP_INTERNAL_API_KEY:-change-this-contract-internal-api-key}
       APP_SERVICES_NOTIFICATION_BASE_URL: http://notification-service:8086
+      APP_SERVICES_PROPOSAL_BASE_URL: ${APP_SERVICES_PROPOSAL_BASE_URL:-http://proposal-service:8084}
+      APP_SERVICES_CONTRACT_BASE_URL: ${APP_SERVICES_CONTRACT_BASE_URL:-http://contract-service:8085}
       ENABLE_ADVANCED_SEARCH: ${ENABLE_ADVANCED_SEARCH:-false}
       SEARCH_PROVIDER: ${SEARCH_PROVIDER:-db}
       OPENSEARCH_URL: ${OPENSEARCH_URL:-http://opensearch:9200}

@@ -34,6 +34,15 @@ public class Job {
     @Column(nullable = false, length = 4000)
     private String description;
 
+    @Column(length = 6000)
+    private String requirements;
+
+    @Column(length = 6000)
+    private String responsibilities;
+
+    @Column(length = 4000)
+    private String benefits;
+
     @Column(length = 255)
     private String companyName;
 
@@ -58,6 +67,19 @@ public class Job {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     private EmploymentType employmentType = EmploymentType.CONTRACT;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private WorkMode workMode = WorkMode.ONSITE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private JobVisibility visibility = JobVisibility.PUBLIC;
+
+    @Column(length = 120)
+    private String category;
+
+    private Integer openings;
 
     @Column(nullable = false)
     private boolean remote;
@@ -90,6 +112,12 @@ public class Job {
         if (employmentType == null) {
             employmentType = EmploymentType.CONTRACT;
         }
+        if (workMode == null) {
+            workMode = WorkMode.ONSITE;
+        }
+        if (visibility == null) {
+            visibility = JobVisibility.PUBLIC;
+        }
     }
 
     @PreUpdate
@@ -119,6 +147,30 @@ public class Job {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getRequirements() {
+        return requirements;
+    }
+
+    public void setRequirements(String requirements) {
+        this.requirements = requirements;
+    }
+
+    public String getResponsibilities() {
+        return responsibilities;
+    }
+
+    public void setResponsibilities(String responsibilities) {
+        this.responsibilities = responsibilities;
+    }
+
+    public String getBenefits() {
+        return benefits;
+    }
+
+    public void setBenefits(String benefits) {
+        this.benefits = benefits;
     }
 
     public String getCompanyName() {
@@ -175,6 +227,38 @@ public class Job {
 
     public void setEmploymentType(EmploymentType employmentType) {
         this.employmentType = employmentType;
+    }
+
+    public WorkMode getWorkMode() {
+        return workMode;
+    }
+
+    public void setWorkMode(WorkMode workMode) {
+        this.workMode = workMode;
+    }
+
+    public JobVisibility getVisibility() {
+        return visibility;
+    }
+
+    public void setVisibility(JobVisibility visibility) {
+        this.visibility = visibility;
+    }
+
+    public String getCategory() {
+        return category;
+    }
+
+    public void setCategory(String category) {
+        this.category = category;
+    }
+
+    public Integer getOpenings() {
+        return openings;
+    }
+
+    public void setOpenings(Integer openings) {
+        this.openings = openings;
     }
 
     public boolean isRemote() {

@@ -15,6 +15,8 @@ public record ProfileResponse(
         String phoneNumber,
         String address,
         String companyAddress,
-        String resumeFileName
+        String resumeFileName,
+        String avatarUrl,
+        String companyLogoUrl
 ) {
 }

@@ -26,15 +26,19 @@ import org.springframework.web.server.ResponseStatusException;
 import com.skillbridge.job_service.domain.EmploymentType;
 import com.skillbridge.job_service.domain.FollowedCompany;
 import com.skillbridge.job_service.domain.Job;
+import com.skillbridge.job_service.domain.JobVisibility;
 import com.skillbridge.job_service.domain.JobStatus;
 import com.skillbridge.job_service.domain.SavedJob;
+import com.skillbridge.job_service.domain.WorkMode;
 import com.skillbridge.job_service.dto.CreateJobRequest;
 import com.skillbridge.job_service.dto.CompanySearchResponse;
 import com.skillbridge.job_service.dto.FollowedCompanyResponse;
 import com.skillbridge.job_service.dto.JobDashboardResponse;
+import com.skillbridge.job_service.dto.PatchJobRequest;
 import com.skillbridge.job_service.dto.JobResponse;
 import com.skillbridge.job_service.dto.JobSearchSuggestionResponse;
 import com.skillbridge.job_service.dto.PagedResult;
+import com.skillbridge.job_service.dto.UpdateJobRequest;
 import com.skillbridge.job_service.repository.FollowedCompanyRepository;
 import com.skillbridge.job_service.repository.JobRepository;
 import com.skillbridge.job_service.repository.SavedJobRepository;
@@ -81,14 +85,21 @@ public class JobService {
         Job job = new Job();
         job.setTitle(normalizeRequiredText(request.title(), "title"));
         job.setDescription(normalizeRequiredText(request.description(), "description"));
+        job.setRequirements(normalizeOptionalText(request.requirements(), 6000));
+        job.setResponsibilities(normalizeOptionalText(request.responsibilities(), 6000));
+        job.setBenefits(normalizeOptionalText(request.benefits(), 4000));
         job.setCompanyName(normalizeText(request.companyName()));
         job.setLocation(normalizeText(request.location()));
         job.setBudgetMin(request.budgetMin());
         job.setBudgetMax(request.budgetMax());
         job.setTags(normalizeTags(request.tags()));
         job.setEmploymentType(request.employmentType() == null ? EmploymentType.CONTRACT : request.employmentType());
-        job.setRemote(Boolean.TRUE.equals(request.remote()));
+        job.setWorkMode(resolveWorkMode(request.workMode(), request.remote()));
+        job.setRemote(resolveRemoteFlag(job.getWorkMode(), request.remote()));
         job.setExperienceYears(request.experienceYears());
+        job.setCategory(normalizeOptionalText(request.category(), 120));
+        job.setVisibility(resolveVisibility(request.visibility()));
+        job.setOpenings(resolveOpenings(request.openings()));
         job.setStatus(resolveCreateStatus(request.status()));
         job.setExpiresAt(request.expiresAt());
         job.setClientId(principal.userId());
@@ -176,6 +187,118 @@ public class JobService {
     @Transactional(readOnly = true)
     public JobResponse getJobById(Long jobId, JwtUserPrincipal principal) {
         return toResponse(findJob(jobId), principal);
+    }
+
+    @Transactional
+    public JobResponse updateJob(Long jobId, UpdateJobRequest request, JwtUserPrincipal principal) {
+        ensureClientRole(principal);
+        Job job = findJob(jobId);
+        ensureOwner(job, principal.userId());
+        ensureJobEditable(job);
+
+        validateBudgetRange(request.budgetMin(), request.budgetMax());
+        validateExperienceYears(request.experienceYears());
+        validateExpiration(request.expiresAt());
+        validateOpenings(request.openings());
+
+        job.setTitle(normalizeRequiredText(request.title(), "title"));
+        job.setDescription(normalizeRequiredText(request.description(), "description"));
+        job.setRequirements(normalizeOptionalText(request.requirements(), 6000));
+        job.setResponsibilities(normalizeOptionalText(request.responsibilities(), 6000));
+        job.setBenefits(normalizeOptionalText(request.benefits(), 4000));
+        job.setBudgetMin(request.budgetMin());
+        job.setBudgetMax(request.budgetMax());
+        job.setTags(normalizeTags(request.tags()));
+        job.setCompanyName(normalizeText(request.companyName()));
+        job.setLocation(normalizeText(request.location()));
+        job.setEmploymentType(request.employmentType() == null ? EmploymentType.CONTRACT : request.employmentType());
+        job.setWorkMode(resolveWorkMode(request.workMode(), request.remote()));
+        job.setRemote(resolveRemoteFlag(job.getWorkMode(), request.remote()));
+        job.setExperienceYears(request.experienceYears());
+        job.setCategory(normalizeOptionalText(request.category(), 120));
+        job.setVisibility(resolveVisibility(request.visibility()));
+        job.setOpenings(resolveOpenings(request.openings()));
+        job.setExpiresAt(request.expiresAt());
+
+        Job savedJob = jobRepository.save(job);
+        safeIndexJob(savedJob);
+        return toResponse(savedJob, principal);
+    }
+
+    @Transactional
+    public JobResponse patchJob(Long jobId, PatchJobRequest request, JwtUserPrincipal principal) {
+        ensureClientRole(principal);
+        Job job = findJob(jobId);
+        ensureOwner(job, principal.userId());
+        ensureJobEditable(job);
+
+        BigDecimal nextBudgetMin = request.budgetMin() != null ? request.budgetMin() : job.getBudgetMin();
+        BigDecimal nextBudgetMax = request.budgetMax() != null ? request.budgetMax() : job.getBudgetMax();
+        validateBudgetRange(nextBudgetMin, nextBudgetMax);
+        validateExperienceYears(request.experienceYears());
+        validateExpiration(request.expiresAt());
+        validateOpenings(request.openings());
+
+        if (request.title() != null) {
+            job.setTitle(normalizeRequiredText(request.title(), "title"));
+        }
+        if (request.description() != null) {
+            job.setDescription(normalizeRequiredText(request.description(), "description"));
+        }
+        if (request.requirements() != null) {
+            job.setRequirements(normalizeOptionalText(request.requirements(), 6000));
+        }
+        if (request.responsibilities() != null) {
+            job.setResponsibilities(normalizeOptionalText(request.responsibilities(), 6000));
+        }
+        if (request.benefits() != null) {
+            job.setBenefits(normalizeOptionalText(request.benefits(), 4000));
+        }
+        if (request.budgetMin() != null) {
+            job.setBudgetMin(request.budgetMin());
+        }
+        if (request.budgetMax() != null) {
+            job.setBudgetMax(request.budgetMax());
+        }
+        if (request.tags() != null) {
+            job.setTags(normalizeTags(request.tags()));
+        }
+        if (request.companyName() != null) {
+            job.setCompanyName(normalizeText(request.companyName()));
+        }
+        if (request.location() != null) {
+            job.setLocation(normalizeText(request.location()));
+        }
+        if (request.employmentType() != null) {
+            job.setEmploymentType(request.employmentType());
+        }
+        if (request.workMode() != null || request.remote() != null) {
+            WorkMode nextWorkMode = resolveWorkMode(
+                    request.workMode() != null ? request.workMode() : job.getWorkMode(),
+                    request.remote()
+            );
+            job.setWorkMode(nextWorkMode);
+            job.setRemote(resolveRemoteFlag(nextWorkMode, request.remote()));
+        }
+        if (request.experienceYears() != null) {
+            job.setExperienceYears(request.experienceYears());
+        }
+        if (request.category() != null) {
+            job.setCategory(normalizeOptionalText(request.category(), 120));
+        }
+        if (request.visibility() != null) {
+            job.setVisibility(request.visibility());
+        }
+        if (request.openings() != null) {
+            job.setOpenings(request.openings());
+        }
+        if (request.expiresAt() != null) {
+            job.setExpiresAt(request.expiresAt());
+        }
+
+        Job savedJob = jobRepository.save(job);
+        safeIndexJob(savedJob);
+        return toResponse(savedJob, principal);
     }
 
     @Transactional
@@ -364,6 +487,15 @@ public class JobService {
         }
     }
 
+    private void ensureJobEditable(Job job) {
+        if (job.getStatus() == JobStatus.IN_PROGRESS || job.getStatus() == JobStatus.CLOSED || job.getStatus() == JobStatus.EXPIRED) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "Job details can only be edited while status is DRAFT or OPEN"
+            );
+        }
+    }
+
     private Job findJob(Long jobId) {
         return jobRepository.findById(jobId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Job not found"));
@@ -437,6 +569,12 @@ public class JobService {
         }
     }
 
+    private void validateOpenings(Integer openings) {
+        if (openings != null && openings < 1) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "openings must be greater than or equal to 1");
+        }
+    }
+
     private void validateExpiration(Instant expiresAt) {
         if (expiresAt != null && expiresAt.isBefore(Instant.now())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "expiresAt must be in the future");
@@ -466,6 +604,46 @@ public class JobService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only DRAFT or OPEN can be used when creating a job");
         }
         return requestedStatus;
+    }
+
+    private WorkMode resolveWorkMode(WorkMode requestedWorkMode, Boolean requestedRemote) {
+        if (requestedWorkMode == null && requestedRemote == null) {
+            return WorkMode.ONSITE;
+        }
+        if (requestedWorkMode == null) {
+            return Boolean.TRUE.equals(requestedRemote) ? WorkMode.REMOTE : WorkMode.ONSITE;
+        }
+        if (requestedRemote != null) {
+            boolean compatible = requestedWorkMode == WorkMode.HYBRID
+                    || (requestedWorkMode == WorkMode.REMOTE && requestedRemote)
+                    || (requestedWorkMode == WorkMode.ONSITE && !requestedRemote);
+            if (!compatible) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "remote is not compatible with workMode");
+            }
+        }
+        return requestedWorkMode;
+    }
+
+    private boolean resolveRemoteFlag(WorkMode workMode, Boolean requestedRemote) {
+        if (workMode == WorkMode.HYBRID) {
+            return true;
+        }
+        if (requestedRemote != null) {
+            return requestedRemote;
+        }
+        return workMode == WorkMode.REMOTE;
+    }
+
+    private JobVisibility resolveVisibility(JobVisibility requestedVisibility) {
+        return requestedVisibility == null ? JobVisibility.PUBLIC : requestedVisibility;
+    }
+
+    private Integer resolveOpenings(Integer openings) {
+        if (openings == null) {
+            return null;
+        }
+        validateOpenings(openings);
+        return openings;
     }
 
     private JobSearchSort resolveSort(String sortBy) {
@@ -568,6 +746,17 @@ public class JobService {
         return normalized;
     }
 
+    private String normalizeOptionalText(String text, int maxLength) {
+        String normalized = normalizeText(text);
+        if (normalized == null) {
+            return null;
+        }
+        if (normalized.length() > maxLength) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Field exceeds max length " + maxLength);
+        }
+        return normalized;
+    }
+
     private String normalizeText(String text) {
         if (text == null) {
             return null;
@@ -615,6 +804,9 @@ public class JobService {
                 job.id(),
                 job.title(),
                 job.description(),
+                job.requirements(),
+                job.responsibilities(),
+                job.benefits(),
                 job.budgetMin(),
                 job.budgetMax(),
                 List.copyOf(job.tags()),
@@ -623,8 +815,12 @@ public class JobService {
                 job.companyName(),
                 job.location(),
                 job.employmentType(),
+                job.workMode(),
                 job.remote(),
                 job.experienceYears(),
+                job.category(),
+                job.visibility(),
+                job.openings(),
                 job.createdAt(),
                 job.updatedAt(),
                 job.publishedAt(),

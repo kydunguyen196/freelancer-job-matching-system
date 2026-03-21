@@ -341,13 +341,20 @@ public class OpenSearchJobSearchService implements JobSearchService {
         properties.put("id", Map.of("type", "long"));
         properties.put("title", textWithKeyword());
         properties.put("description", Map.of("type", "text"));
+        properties.put("requirements", Map.of("type", "text"));
+        properties.put("responsibilities", Map.of("type", "text"));
+        properties.put("benefits", Map.of("type", "text"));
         properties.put("companyName", textWithKeyword());
         properties.put("location", textWithKeyword());
         properties.put("employmentType", Map.of("type", "keyword"));
+        properties.put("workMode", Map.of("type", "keyword"));
         properties.put("remote", Map.of("type", "boolean"));
         properties.put("budgetMin", Map.of("type", "double"));
         properties.put("budgetMax", Map.of("type", "double"));
         properties.put("experienceYears", Map.of("type", "integer"));
+        properties.put("category", textWithKeyword());
+        properties.put("visibility", Map.of("type", "keyword"));
+        properties.put("openings", Map.of("type", "integer"));
         properties.put("status", Map.of("type", "keyword"));
         properties.put("clientId", Map.of("type", "long"));
         properties.put("createdAt", Map.of("type", "date"));
@@ -385,13 +392,20 @@ public class OpenSearchJobSearchService implements JobSearchService {
         document.put("id", job.getId());
         document.put("title", job.getTitle());
         document.put("description", job.getDescription());
+        document.put("requirements", job.getRequirements());
+        document.put("responsibilities", job.getResponsibilities());
+        document.put("benefits", job.getBenefits());
         document.put("companyName", job.getCompanyName());
         document.put("location", job.getLocation());
         document.put("employmentType", job.getEmploymentType() == null ? null : job.getEmploymentType().name());
+        document.put("workMode", job.getWorkMode() == null ? null : job.getWorkMode().name());
         document.put("remote", job.isRemote());
         document.put("budgetMin", job.getBudgetMin());
         document.put("budgetMax", job.getBudgetMax());
         document.put("experienceYears", job.getExperienceYears());
+        document.put("category", job.getCategory());
+        document.put("visibility", job.getVisibility() == null ? null : job.getVisibility().name());
+        document.put("openings", job.getOpenings());
         document.put("status", job.getStatus() == null ? null : job.getStatus().name());
         document.put("clientId", job.getClientId());
         document.put("createdAt", job.getCreatedAt());
@@ -477,7 +491,17 @@ public class OpenSearchJobSearchService implements JobSearchService {
             must.add(Map.of(
                     "multi_match", Map.of(
                             "query", request.keyword(),
-                            "fields", List.of("title^5", "companyName^3", "location^2", "description", "tags^2"),
+                            "fields", List.of(
+                                    "title^5",
+                                    "companyName^3",
+                                    "location^2",
+                                    "description",
+                                    "requirements",
+                                    "responsibilities",
+                                    "benefits",
+                                    "category^2",
+                                    "tags^2"
+                            ),
                             "type", "best_fields"
                     )
             ));
@@ -549,6 +573,9 @@ public class OpenSearchJobSearchService implements JobSearchService {
                 readLong(source, "id"),
                 readText(source, "title"),
                 readText(source, "description"),
+                readNullableText(source, "requirements"),
+                readNullableText(source, "responsibilities"),
+                readNullableText(source, "benefits"),
                 readBigDecimal(source, "budgetMin"),
                 readBigDecimal(source, "budgetMax"),
                 readTextArray(source.path("tags")),
@@ -557,10 +584,16 @@ public class OpenSearchJobSearchService implements JobSearchService {
                 readNullableText(source, "companyName"),
                 readNullableText(source, "location"),
                 readText(source, "employmentType"),
+                readNullableText(source, "workMode"),
                 source.path("remote").asBoolean(false),
                 source.path("experienceYears").isMissingNode() || source.path("experienceYears").isNull()
                         ? null
                         : source.path("experienceYears").asInt(),
+                readNullableText(source, "category"),
+                readNullableText(source, "visibility"),
+                source.path("openings").isMissingNode() || source.path("openings").isNull()
+                        ? null
+                        : source.path("openings").asInt(),
                 readInstant(source, "createdAt"),
                 readInstant(source, "updatedAt"),
                 readInstant(source, "publishedAt"),

@@ -50,6 +50,7 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/proposals/internal/analytics/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/proposals").hasRole("FREELANCER")
                         .requestMatchers(HttpMethod.GET, "/jobs/*/proposals").hasRole("CLIENT")
                         .requestMatchers(HttpMethod.GET, "/proposals/me", "/proposals/dashboard/me").authenticated()

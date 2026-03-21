@@ -51,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         .requestMatchers(HttpMethod.POST, "/contracts/internal/from-proposal").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/contracts/internal/analytics/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/contracts/me").authenticated()
                         .requestMatchers(HttpMethod.POST, "/contracts/*/milestones").hasRole("CLIENT")
                         .requestMatchers(HttpMethod.PATCH, "/milestones/*/complete").authenticated()

@@ -50,6 +50,9 @@ app:
     secret: ${APP_JWT_SECRET:change-this-secret-key-to-at-least-32-characters-long-for-dev}
     access-token-expiration-ms: ${APP_JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
     refresh-token-expiration-ms: ${APP_JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+  media:
+    max-file-size-mb: ${APP_MEDIA_MAX_FILE_SIZE_MB:3}
+    allowed-content-types: ${APP_MEDIA_ALLOWED_CONTENT_TYPES:image/jpeg,image/png,image/webp,image/gif}
 
 springdoc:
   api-docs:

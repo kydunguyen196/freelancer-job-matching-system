@@ -6,7 +6,6 @@ import java.util.List;
 
 import com.skillbridge.job_service.domain.EmploymentType;
 import com.skillbridge.job_service.domain.JobVisibility;
-import com.skillbridge.job_service.domain.JobStatus;
 import com.skillbridge.job_service.domain.WorkMode;
 
 import jakarta.validation.constraints.DecimalMin;
@@ -15,7 +14,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-public record CreateJobRequest(
+public record UpdateJobRequest(
         @NotBlank @Size(max = 150) String title,
         @NotBlank @Size(max = 4000) String description,
         @Size(max = 6000) String requirements,
@@ -33,7 +32,6 @@ public record CreateJobRequest(
         @Size(max = 120) String category,
         JobVisibility visibility,
         @Min(1) Integer openings,
-        JobStatus status,
         Instant expiresAt
 ) {
 }

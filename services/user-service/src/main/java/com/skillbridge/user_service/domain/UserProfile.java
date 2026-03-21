@@ -81,6 +81,30 @@ public class UserProfile {
     @Column
     private byte[] resumeData;
 
+    @Column(length = 255)
+    private String avatarFileName;
+
+    @Column(length = 120)
+    private String avatarContentType;
+
+    @Lob
+    @Column
+    private byte[] avatarData;
+
+    private Instant avatarUploadedAt;
+
+    @Column(length = 255)
+    private String companyLogoFileName;
+
+    @Column(length = 120)
+    private String companyLogoContentType;
+
+    @Lob
+    @Column
+    private byte[] companyLogoData;
+
+    private Instant companyLogoUploadedAt;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -217,6 +241,70 @@ public class UserProfile {
 
     public void setResumeData(byte[] resumeData) {
         this.resumeData = resumeData == null ? null : resumeData.clone();
+    }
+
+    public String getAvatarFileName() {
+        return avatarFileName;
+    }
+
+    public void setAvatarFileName(String avatarFileName) {
+        this.avatarFileName = avatarFileName;
+    }
+
+    public String getAvatarContentType() {
+        return avatarContentType;
+    }
+
+    public void setAvatarContentType(String avatarContentType) {
+        this.avatarContentType = avatarContentType;
+    }
+
+    public byte[] getAvatarData() {
+        return avatarData == null ? null : avatarData.clone();
+    }
+
+    public void setAvatarData(byte[] avatarData) {
+        this.avatarData = avatarData == null ? null : avatarData.clone();
+    }
+
+    public Instant getAvatarUploadedAt() {
+        return avatarUploadedAt;
+    }
+
+    public void setAvatarUploadedAt(Instant avatarUploadedAt) {
+        this.avatarUploadedAt = avatarUploadedAt;
+    }
+
+    public String getCompanyLogoFileName() {
+        return companyLogoFileName;
+    }
+
+    public void setCompanyLogoFileName(String companyLogoFileName) {
+        this.companyLogoFileName = companyLogoFileName;
+    }
+
+    public String getCompanyLogoContentType() {
+        return companyLogoContentType;
+    }
+
+    public void setCompanyLogoContentType(String companyLogoContentType) {
+        this.companyLogoContentType = companyLogoContentType;
+    }
+
+    public byte[] getCompanyLogoData() {
+        return companyLogoData == null ? null : companyLogoData.clone();
+    }
+
+    public void setCompanyLogoData(byte[] companyLogoData) {
+        this.companyLogoData = companyLogoData == null ? null : companyLogoData.clone();
+    }
+
+    public Instant getCompanyLogoUploadedAt() {
+        return companyLogoUploadedAt;
+    }
+
+    public void setCompanyLogoUploadedAt(Instant companyLogoUploadedAt) {
+        this.companyLogoUploadedAt = companyLogoUploadedAt;
     }
 
     public Instant getCreatedAt() {
