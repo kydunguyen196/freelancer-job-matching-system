@@ -23,6 +23,7 @@ spring:
   flyway:
     enabled: ${APP_FLYWAY_ENABLED:true}
     baseline-on-migrate: ${APP_FLYWAY_BASELINE_ON_MIGRATE:true}
+    out-of-order: ${APP_FLYWAY_OUT_OF_ORDER:true}
 
 logging:
   pattern:

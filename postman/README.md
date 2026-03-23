@@ -68,10 +68,6 @@ Create environment `SkillBridge Local` with:
 - `clientEmail = client.demo@skillbridge.local`
 - `freelancerEmail = freelancer.demo@skillbridge.local`
 - `password = Demo12345!`
-- `clientAccessToken` (empty)
-- `freelancerAccessToken` (empty)
-- `clientRefreshToken` (empty)
-- `freelancerRefreshToken` (empty)
 - `clientUserId` (empty)
 - `freelancerUserId` (empty)
 - `jobId` (empty)
@@ -86,18 +82,23 @@ Create environment `SkillBridge Local` with:
 
 1. `POST /auth/register` (CLIENT)
 2. `POST /auth/register` (FREELANCER)
-3. `POST /auth/login` (CLIENT) -> save tokens + userId
-4. `POST /auth/login` (FREELANCER) -> save tokens + userId
-5. `PUT /users/me` (CLIENT token)
-6. `PUT /users/me` (FREELANCER token)
-7. `POST /jobs` (CLIENT token) -> save `jobId`
-8. `POST /proposals` (FREELANCER token, use `jobId`) -> save `proposalId`
-9. `PATCH /proposals/{proposalId}/accept` (CLIENT token)
-10. `GET /contracts/me` (FREELANCER token) -> save `contractId`, `milestoneId`
-11. `PATCH /milestones/{milestoneId}/complete` (FREELANCER token)
-12. `GET /notifications/me` (FREELANCER token) -> save `notificationId`
-13. `PATCH /notifications/{notificationId}/read` (FREELANCER token)
-14. `PATCH /jobs/{jobId}/close` (CLIENT token, optional)
+3. `POST /auth/login` (CLIENT cookie context)
+4. `PUT /users/me` (CLIENT)
+5. `POST /auth/login` (FREELANCER cookie context)
+6. `PUT /users/me` (FREELANCER)
+7. `POST /auth/login` (CLIENT cookie context)
+8. `POST /jobs` (CLIENT) -> save `jobId`
+9. `POST /auth/login` (FREELANCER cookie context)
+10. `POST /proposals` (FREELANCER, use `jobId`) -> save `proposalId`
+11. `POST /auth/login` (CLIENT cookie context)
+12. `PATCH /proposals/{proposalId}/accept` (CLIENT)
+13. `POST /auth/login` (FREELANCER cookie context)
+14. `GET /contracts/me` (FREELANCER) -> save `contractId`, `milestoneId`
+15. `PATCH /milestones/{milestoneId}/complete` (FREELANCER)
+16. `GET /notifications/me` (FREELANCER) -> save `notificationId`
+17. `PATCH /notifications/{notificationId}/read` (FREELANCER)
+18. `POST /auth/login` (CLIENT cookie context)
+19. `PATCH /jobs/{jobId}/close` (CLIENT, optional)
 
 ## 5. Useful Postman test scripts
 
@@ -107,8 +108,6 @@ pm.test("200 OK", function () {
   pm.response.to.have.status(200);
 });
 const data = pm.response.json();
-pm.environment.set("clientAccessToken", data.accessToken);
-pm.environment.set("clientRefreshToken", data.refreshToken);
 pm.environment.set("clientUserId", data.userId);
 ```
 
@@ -118,8 +117,6 @@ pm.test("200 OK", function () {
   pm.response.to.have.status(200);
 });
 const data = pm.response.json();
-pm.environment.set("freelancerAccessToken", data.accessToken);
-pm.environment.set("freelancerRefreshToken", data.refreshToken);
 pm.environment.set("freelancerUserId", data.userId);
 ```
 

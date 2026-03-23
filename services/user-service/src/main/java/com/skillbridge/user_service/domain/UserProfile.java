@@ -16,7 +16,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -77,8 +76,7 @@ public class UserProfile {
     @Column(length = 120)
     private String resumeContentType;
 
-    @Lob
-    @Column
+    @Column(name = "resume_data", columnDefinition = "bytea")
     private byte[] resumeData;
 
     @Column(length = 255)
@@ -87,8 +85,7 @@ public class UserProfile {
     @Column(length = 120)
     private String avatarContentType;
 
-    @Lob
-    @Column
+    @Column(name = "avatar_data", columnDefinition = "bytea")
     private byte[] avatarData;
 
     private Instant avatarUploadedAt;
@@ -99,8 +96,7 @@ public class UserProfile {
     @Column(length = 120)
     private String companyLogoContentType;
 
-    @Lob
-    @Column
+    @Column(name = "company_logo_data", columnDefinition = "bytea")
     private byte[] companyLogoData;
 
     private Instant companyLogoUploadedAt;

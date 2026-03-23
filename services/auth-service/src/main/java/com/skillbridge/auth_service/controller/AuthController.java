@@ -7,11 +7,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.skillbridge.auth_service.dto.AuthResponse;
 import com.skillbridge.auth_service.dto.LoginRequest;
-import com.skillbridge.auth_service.dto.RefreshTokenRequest;
 import com.skillbridge.auth_service.dto.RegisterRequest;
 import com.skillbridge.auth_service.service.AuthCookieService;
 import com.skillbridge.auth_service.service.AuthService;
@@ -56,13 +56,13 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public AuthResponse refresh(
-            @RequestBody(required = false) RefreshTokenRequest request,
+            @RequestParam(name = "refreshToken", required = false) String requestToken,
             HttpServletRequest httpServletRequest,
             HttpServletResponse response
     ) {
         String refreshToken = authCookieService.resolveRefreshToken(
                 httpServletRequest,
-                request != null ? request.refreshToken() : null
+                requestToken
         );
         AuthTokenBundle issued = authService.refresh(refreshToken);
         authCookieService.writeAuthCookies(response, issued);

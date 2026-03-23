@@ -5,18 +5,30 @@
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8080" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    }
   ],
   "item": [
     {
       "name": "01 Register Client",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"{{clientEmail}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"CLIENT\"\n}",
-          "options": { "raw": { "language": "json" } }
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": "{{baseUrl}}/auth/register"
       },
@@ -30,8 +42,8 @@
               "  pm.expect([201, 409]).to.include(pm.response.code);",
               "});",
               "if (pm.response.code === 201) {",
-              "  const data = pm.response.json();",
-              "  pm.environment.set('clientUserId', data.userId);",
+              "  var loginData = pm.response.json();",
+              "  pm.environment.set('clientUserId', loginData.userId);",
               "}"
             ]
           }
@@ -42,11 +54,20 @@
       "name": "02 Register Freelancer",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"{{freelancerEmail}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"FREELANCER\"\n}",
-          "options": { "raw": { "language": "json" } }
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": "{{baseUrl}}/auth/register"
       },
@@ -60,8 +81,8 @@
               "  pm.expect([201, 409]).to.include(pm.response.code);",
               "});",
               "if (pm.response.code === 201) {",
-              "  const data = pm.response.json();",
-              "  pm.environment.set('freelancerUserId', data.userId);",
+              "  var loginData = pm.response.json();",
+              "  pm.environment.set('freelancerUserId', loginData.userId);",
               "}"
             ]
           }
@@ -69,41 +90,23 @@
       ]
     },
     {
-      "name": "03 Login Client",
+      "name": "03 Login Client (Cookie Context)",
       "request": {
         "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"email\": \"{{clientEmail}}\",\n  \"password\": \"{{password}}\"\n}",
-          "options": { "raw": { "language": "json" } }
-        },
-        "url": "{{baseUrl}}/auth/login"
-      },
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "type": "text/javascript",
-            "exec": [
-              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-              "pm.environment.set('clientAccessToken', pm.response.json().accessToken);",
-              "pm.environment.set('clientRefreshToken', pm.response.json().refreshToken);",
-              "pm.environment.set('clientUserId', pm.response.json().userId);"
-            ]
+          "options": {
+            "raw": {
+              "language": "json"
+            }
           }
-        }
-      ]
-    },
-    {
-      "name": "04 Login Freelancer",
-      "request": {
-        "method": "POST",
-        "header": [{ "key": "Content-Type", "value": "application/json" }],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"email\": \"{{freelancerEmail}}\",\n  \"password\": \"{{password}}\"\n}",
-          "options": { "raw": { "language": "json" } }
         },
         "url": "{{baseUrl}}/auth/login"
       },
@@ -114,9 +117,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
-              "pm.environment.set('freelancerAccessToken', pm.response.json().accessToken);",
-              "pm.environment.set('freelancerRefreshToken', pm.response.json().refreshToken);",
-              "pm.environment.set('freelancerUserId', pm.response.json().userId);"
+              "var loginData = pm.response.json();",
+              "pm.environment.set('clientUserId', loginData.userId);"
             ]
           }
         }
@@ -127,45 +129,155 @@
       "request": {
         "method": "PUT",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{clientAccessToken}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"companyName\": \"{{clientCompany}}\"\n}",
-          "options": { "raw": { "language": "json" } }
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": "{{baseUrl}}/users/me"
-      }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Login Freelancer (Cookie Context)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{freelancerEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "var loginData = pm.response.json();",
+              "pm.environment.set('freelancerUserId', loginData.userId);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "06 Upsert Freelancer Profile",
       "request": {
         "method": "PUT",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{freelancerAccessToken}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"skills\": [\"java\", \"spring\", \"postgresql\"],\n  \"hourlyRate\": {{freelancerHourlyRate}},\n  \"overview\": \"Demo freelancer account\",\n  \"companyName\": null\n}",
-          "options": { "raw": { "language": "json" } }
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": "{{baseUrl}}/users/me"
-      }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05b Login Client (Cookie Context)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{clientEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "var loginData = pm.response.json();",
+              "pm.environment.set('clientUserId', loginData.userId);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "07 Create Job",
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{clientAccessToken}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"title\": \"Demo Backend Job {{$timestamp}} {{jobTitleSuffix}}\",\n  \"description\": \"Implement REST endpoint hardening and event notifications.\",\n  \"budgetMin\": {{budgetMin}},\n  \"budgetMax\": {{budgetMax}},\n  \"tags\": [\"java\", \"spring-boot\", \"rabbitmq\"]\n}",
-          "options": { "raw": { "language": "json" } }
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": "{{baseUrl}}/jobs"
       },
@@ -183,17 +295,58 @@
       ]
     },
     {
+      "name": "06b Login Freelancer (Cookie Context)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{freelancerEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "var loginData = pm.response.json();",
+              "pm.environment.set('freelancerUserId', loginData.userId);"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "08 Create Proposal",
       "request": {
         "method": "POST",
         "header": [
-          { "key": "Content-Type", "value": "application/json" },
-          { "key": "Authorization", "value": "Bearer {{freelancerAccessToken}}" }
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
         ],
         "body": {
           "mode": "raw",
           "raw": "{\n  \"jobId\": {{jobId}},\n  \"coverLetter\": \"I can deliver this in {{durationDays}} days with tests and docs.\",\n  \"price\": {{proposalPrice}},\n  \"durationDays\": {{durationDays}}\n}",
-          "options": { "raw": { "language": "json" } }
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
         },
         "url": "{{baseUrl}}/proposals"
       },
@@ -211,18 +364,99 @@
       ]
     },
     {
+      "name": "08b Login Client (Cookie Context)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{clientEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "var loginData = pm.response.json();",
+              "pm.environment.set('clientUserId', loginData.userId);"
+            ]
+          }
+        }
+      ]
+    },
+    {
       "name": "09 Accept Proposal",
       "request": {
         "method": "PATCH",
-        "header": [{ "key": "Authorization", "value": "Bearer {{clientAccessToken}}" }],
+        "header": [],
         "url": "{{baseUrl}}/proposals/{{proposalId}}/accept"
-      }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09b Login Freelancer (Cookie Context)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{freelancerEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "var loginData = pm.response.json();",
+              "pm.environment.set('freelancerUserId', loginData.userId);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "10 Get Contracts (Freelancer)",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{freelancerAccessToken}}" }],
+        "header": [],
         "url": "{{baseUrl}}/contracts/me"
       },
       "event": [
@@ -248,15 +482,26 @@
       "name": "11 Complete Milestone",
       "request": {
         "method": "PATCH",
-        "header": [{ "key": "Authorization", "value": "Bearer {{freelancerAccessToken}}" }],
+        "header": [],
         "url": "{{baseUrl}}/milestones/{{milestoneId}}/complete"
-      }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "12 Get Notifications",
       "request": {
         "method": "GET",
-        "header": [{ "key": "Authorization", "value": "Bearer {{freelancerAccessToken}}" }],
+        "header": [],
         "url": "{{baseUrl}}/notifications/me"
       },
       "event": [
@@ -279,17 +524,74 @@
       "name": "13 Mark Notification Read",
       "request": {
         "method": "PATCH",
-        "header": [{ "key": "Authorization", "value": "Bearer {{freelancerAccessToken}}" }],
+        "header": [],
         "url": "{{baseUrl}}/notifications/{{notificationId}}/read"
-      }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13b Login Client (Cookie Context)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{clientEmail}}\",\n  \"password\": \"{{password}}\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });",
+              "var loginData = pm.response.json();",
+              "pm.environment.set('clientUserId', loginData.userId);"
+            ]
+          }
+        }
+      ]
     },
     {
       "name": "14 Close Job (Optional)",
       "request": {
         "method": "PATCH",
-        "header": [{ "key": "Authorization", "value": "Bearer {{clientAccessToken}}" }],
+        "header": [],
         "url": "{{baseUrl}}/jobs/{{jobId}}/close"
-      }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', function () { pm.response.to.have.status(200); });"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

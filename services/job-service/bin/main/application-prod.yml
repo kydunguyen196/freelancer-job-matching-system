@@ -1,0 +1,14 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

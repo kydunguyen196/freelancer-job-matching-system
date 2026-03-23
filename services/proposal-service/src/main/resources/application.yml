@@ -70,7 +70,7 @@ app:
       token-url: ${GOOGLE_TOKEN_URL:https://oauth2.googleapis.com/token}
       api-base-url: ${GOOGLE_API_BASE_URL:https://www.googleapis.com}
   file-storage:
-    enabled: ${ENABLE_FILE_STORAGE:false}
+    enabled: ${ENABLE_FILE_STORAGE:true}
     provider: ${STORAGE_PROVIDER:mock}
     max-cv-file-size-mb: ${MAX_CV_FILE_SIZE_MB:10}
     signed-url-ttl-minutes: ${CV_SIGNED_URL_TTL_MINUTES:15}

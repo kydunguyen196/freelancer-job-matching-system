@@ -283,7 +283,7 @@ services:
       MAX_CV_FILE_SIZE_MB: ${MAX_CV_FILE_SIZE_MB:-10}
       CV_SIGNED_URL_TTL_MINUTES: ${CV_SIGNED_URL_TTL_MINUTES:-15}
       ALLOWED_CV_CONTENT_TYPES: ${ALLOWED_CV_CONTENT_TYPES:-application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document}
-      MOCK_STORAGE_BASE_DIR: ${MOCK_STORAGE_BASE_DIR:-}
+      MOCK_STORAGE_BASE_DIR: ${MOCK_STORAGE_BASE_DIR:-/tmp/skillbridge/mock-storage}
       MOCK_STORAGE_BUCKET: ${MOCK_STORAGE_BUCKET:-mock-local}
       S3_BUCKET: ${S3_BUCKET:-}
       AWS_REGION: ${AWS_REGION:-}

@@ -186,6 +186,9 @@ public class FileStorageProperties {
         }
 
         public void setBaseDir(String baseDir) {
+            if (baseDir == null || baseDir.isBlank()) {
+                return;
+            }
             this.baseDir = baseDir;
         }
 

@@ -1,9 +1,12 @@
 server:
   port: 8083
+  shutdown: graceful
 
 spring:
   application:
     name: job-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/job_db}
@@ -12,32 +15,59 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${APP_JPA_DDL_AUTO:update}
     properties:
       hibernate:
         format_sql: true
     open-in-view: false
+  flyway:
+    enabled: ${APP_FLYWAY_ENABLED:true}
+    baseline-on-migrate: ${APP_FLYWAY_BASELINE_ON_MIGRATE:true}
+    out-of-order: ${APP_FLYWAY_OUT_OF_ORDER:true}
 
 logging:
   pattern:
     level: "%5p [cid:%X{correlationId:-}]"
   level:
-    org.hibernate.SQL: debug
+    org.hibernate.SQL: ${APP_SQL_LOG_LEVEL:debug}
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
 
 app:
   jwt:
     secret: ${APP_JWT_SECRET:change-this-secret-key-to-at-least-32-characters-long-for-dev}
     access-token-expiration-ms: ${APP_JWT_ACCESS_TOKEN_EXPIRATION_MS:900000}
     refresh-token-expiration-ms: ${APP_JWT_REFRESH_TOKEN_EXPIRATION_MS:604800000}
+  search:
+    enabled: ${ENABLE_ADVANCED_SEARCH:false}
+    provider: ${SEARCH_PROVIDER:db}
+    opensearch:
+      url: ${OPENSEARCH_URL:}
+      username: ${OPENSEARCH_USERNAME:}
+      password: ${OPENSEARCH_PASSWORD:}
+      index-jobs: ${OPENSEARCH_INDEX_JOBS:jobs}
+      index-companies: ${OPENSEARCH_INDEX_COMPANIES:companies}
+      connect-timeout-ms: ${OPENSEARCH_CONNECT_TIMEOUT_MS:3000}
+      socket-timeout-ms: ${OPENSEARCH_SOCKET_TIMEOUT_MS:5000}
+  services:
+    notification-base-url: ${APP_SERVICES_NOTIFICATION_BASE_URL:http://localhost:8086}
+    proposal-base-url: ${APP_SERVICES_PROPOSAL_BASE_URL:http://localhost:8084}
+    contract-base-url: ${APP_SERVICES_CONTRACT_BASE_URL:http://localhost:8085}
+  internal:
+    api-key: ${APP_INTERNAL_API_KEY:change-this-contract-internal-api-key}
 
 springdoc:
   api-docs:
     path: /v3/api-docs
+    enabled: ${APP_DOCS_ENABLED:true}
   swagger-ui:
     path: /swagger-ui.html
+    enabled: ${APP_DOCS_ENABLED:true}
